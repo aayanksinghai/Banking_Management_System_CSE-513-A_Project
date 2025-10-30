@@ -16,5 +16,6 @@ int is_customer_exists(const char *username, const char *password);
 int is_employee_exists(const char *username, const char *password);
 void add_BankEmp(int sock);
 void change_admin_password(int sock);
+void modify_user_details(int sock);
 
 #endif

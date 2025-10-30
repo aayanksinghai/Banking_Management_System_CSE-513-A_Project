@@ -257,8 +257,9 @@ void show_admin_menu(int sock, const char* username){
                "2. Add new Customer\n"
                "3. Remove Customer\n"
                "4. Add Bank Employee\n"
-               "5. Change Password\n"
-               "6. Logout\n"
+               "5. Modify Customer/Employee Details\n" // ADD THIS
+               "6. Change Password\n"
+               "7. Logout\n"
                "Enter your choice: ");
         scanf("%d", &choice);
         sprintf(message, "%d", choice); 
@@ -298,6 +299,28 @@ void show_admin_menu(int sock, const char* username){
                 memset(server_reply, 0, BUFFER_SIZE);
                 break;
             case 5: // ADD THIS NEW CASE
+                int user_type;
+                char old_username[50], new_username[50], new_password[50];
+                printf("Modify details for:\n1. Customer\n2. Employee\nEnter choice: ");
+                scanf("%d", &user_type);
+                sprintf(message, "%d", user_type);
+                send(sock, message, strlen(message), 0);
+
+                printf("Enter the CURRENT username: ");
+                scanf("%s", old_username);
+                printf("Enter the NEW username: ");
+                scanf("%s", new_username);
+                printf("Enter the NEW password: ");
+                scanf("%s", new_password);
+
+                snprintf(message, sizeof(message), "%s %s %s", old_username, new_username, new_password);
+                send(sock, message, strlen(message), 0);
+
+                memset(server_reply, 0, BUFFER_SIZE);
+                recv(sock, server_reply, BUFFER_SIZE, 0);
+                printf("%s\n", server_reply); // Confirmation message
+                break;
+            case 6:
                 char old_password[50], new_password[50];
                 printf("Enter old password: ");
                 scanf("%s", old_password);
@@ -317,7 +340,7 @@ void show_admin_menu(int sock, const char* username){
                     printf("%s\n", server_reply);  // Confirmation message
                 }
                 break;
-            case 6:
+            case 7:
                 printf("Logging Out...\n");
                 exit(0);
             default:

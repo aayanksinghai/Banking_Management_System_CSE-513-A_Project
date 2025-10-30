@@ -23,6 +23,75 @@ int emp_count = 0;
 Employee new_employee;
 
 
+// Helper to load all employees from an already-opened file descriptor
+int _admin_load_employees_from_fd(int fd) {
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start of employee file");
+        return -1;
+    }
+
+    char buffer[BUFFER_SIZE * 4];
+    char line[BUFFER_SIZE];
+    int line_pos = 0;
+    ssize_t bytes_read;
+    emp_count = 0; // Reset global employee count
+
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        char *ptr = buffer;
+
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
+                
+                if (emp_count < 100) {
+                    sscanf(line, "%s %s %d", 
+                           employees[emp_count].username, 
+                           employees[emp_count].password, 
+                           &employees[emp_count].id);
+                    emp_count++;
+                }
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+    }
+    return emp_count;
+}
+
+// Helper to save all employees to an already-opened file descriptor
+int _admin_save_employees_to_fd(int fd) {
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start for writing");
+        return -1;
+    }
+    if (ftruncate(fd, 0) == -1) {
+        perror("Failed to truncate employee file");
+        return -1;
+    }
+
+    char buffer[BUFFER_SIZE];
+    for (int i = 0; i < emp_count; i++) {
+        snprintf(buffer, sizeof(buffer), "%s %s %d\n", 
+                 employees[i].username, employees[i].password, 
+                 employees[i].id);
+        
+        if (write(fd, buffer, strlen(buffer)) == -1) {
+            perror("Failed to write employee to file");
+            return -1;
+        }
+    }
+    return 0; // Success
+}
+
 void add_BankEmp(int sock){
     char message[BUFFER_SIZE];
     recv(sock, message, BUFFER_SIZE, 0);
@@ -493,6 +562,123 @@ void remove_customer(int sock) {
     }
 }
 
+void modify_customer_details(int sock) {
+    char old_username[50], new_username[50], new_password[50];
+    char buffer[BUFFER_SIZE];
+    int found = 0;
+
+    // Get details from client
+    recv(sock, buffer, BUFFER_SIZE, 0);
+    sscanf(buffer, "%s %s %s", old_username, new_username, new_password);
+
+    int fd = open(CUSTOMER_FILE, O_RDWR);
+    if (fd == -1) {
+        const char *error_msg = "Error: Could not open customer file.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+        return;
+    }
+
+    if (flock(fd, LOCK_EX) == -1) {
+        perror("Failed to lock customer file for update");
+        close(fd);
+        const char *error_msg = "Error: Database is busy. Try again.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+        return;
+    }
+
+    // 1. READ (using existing admin helper)
+    load_customers(sock); // This populates the global 'customers' array
+
+    // 2. MODIFY (in memory)
+    for (int i = 0; i < customer_count; i++) {
+        if (strcmp(customers[i].username, old_username) == 0) {
+            found = 1;
+            strcpy(customers[i].username, new_username);
+            strcpy(customers[i].password, new_password);
+            break;
+        }
+    }
+
+    // 3. WRITE (back to file using existing admin helper)
+    if (found) {
+        save_customers(); // This saves the global 'customers' array
+        const char *success_msg = "Customer update completed.\n";
+        send(sock, success_msg, strlen(success_msg), 0);
+    } else {
+        const char *error_msg = "Error: Customer not found.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+    
+    flock(fd, LOCK_UN);
+    close(fd);
+}
+
+void modify_employee_details(int sock) {
+    char old_username[50], new_username[50], new_password[50];
+    char buffer[BUFFER_SIZE];
+    int found = 0;
+
+    // Get details from client
+    recv(sock, buffer, BUFFER_SIZE, 0);
+    sscanf(buffer, "%s %s %s", old_username, new_username, new_password);
+
+    int fd = open(EMPLOYEE_FILE, O_RDWR);
+    if (fd == -1) {
+        const char *error_msg = "Error: Could not open employee file.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+        return;
+    }
+
+    if (flock(fd, LOCK_EX) == -1) {
+        perror("Failed to lock employee file for update");
+        close(fd);
+        const char *error_msg = "Error: Database is busy. Try again.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+        return;
+    }
+
+    // 1. READ (using new admin helper)
+    _admin_load_employees_from_fd(fd);
+
+    // 2. MODIFY (in memory)
+    for (int i = 0; i < emp_count; i++) {
+        if (strcmp(employees[i].username, old_username) == 0) {
+            found = 1;
+            strcpy(employees[i].username, new_username);
+            strcpy(employees[i].password, new_password);
+            break;
+        }
+    }
+
+    // 3. WRITE (back to file using new admin helper)
+    if (found) {
+        _admin_save_employees_to_fd(fd);
+        const char *success_msg = "Employee update completed.\n";
+        send(sock, success_msg, strlen(success_msg), 0);
+    } else {
+        const char *error_msg = "Error: Employee not found.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+    
+    flock(fd, LOCK_UN);
+    close(fd);
+}
+
+void modify_user_details(int sock) {
+    char choice_buffer[4];
+    recv(sock, choice_buffer, sizeof(choice_buffer), 0);
+    int choice = atoi(choice_buffer);
+
+    if (choice == 1) {
+        modify_customer_details(sock);
+    } else if (choice == 2) {
+        modify_employee_details(sock);
+    } else {
+        const char *error_msg = "Invalid user type selected.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+}
+
 void handle_admin_login(int sock) {
     char username[30], password[30];
 
@@ -528,10 +714,13 @@ void handle_admin_login(int sock) {
                 case 4:
                     add_BankEmp(sock);
                     break;
-                case 5:
-                    change_admin_password(sock);
+                case 5: 
+                    modify_user_details(sock);
                     break;
                 case 6:
+                    change_admin_password(sock);
+                    break;
+                case 7:
                     printf("Logging out...");
                     close(sock);
                     return;
