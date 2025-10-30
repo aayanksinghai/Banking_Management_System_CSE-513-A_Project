@@ -1,2 +1,1 @@
-  0.00 0 1
-aayank root 1000.00 100 1
+aayank root 500.00 100 1
