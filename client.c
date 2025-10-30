@@ -11,6 +11,7 @@ void show_customer_menu(int sock, const char* username);
 void show_admin_menu(int sock, const char* username);
 void show_employee_menu(int sock, const char* username);
 void show_manager_menu(int sock, const char* username);
+void show_manage_roles_menu(int sock);
 
 int main() {
     int sock;
@@ -315,7 +316,7 @@ void show_admin_menu(int sock, const char* username){
                 printf("%s\n", server_reply); // Confirmation message
                 break;
             case 6:
-                char old_password[50], new_password[50];
+                char old_password[50], new_passwrd[50];
                 printf("Enter old password: ");
                 scanf("%s", old_password);
                 send(sock, old_password, strlen(old_password), 0);
@@ -326,8 +327,8 @@ void show_admin_menu(int sock, const char* username){
                 
                 if (strstr(server_reply, "Password match")) {
                     printf("Enter new password: ");
-                    scanf("%s", new_password);
-                    send(sock, new_password, strlen(new_password), 0);
+                    scanf("%s", new_passwrd);
+                    send(sock, new_passwrd, strlen(new_passwrd), 0);
 
                     memset(server_reply, 0, BUFFER_SIZE);
                     recv(sock, server_reply, BUFFER_SIZE, 0);
@@ -431,9 +432,9 @@ void show_employee_menu(int sock, const char* username){
                 send(sock, search_username, strlen(search_username), 0);
 
                 memset(server_reply, 0, BUFFER_SIZE);
-                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE, 0);
-                if(bytes_recvd > 0) {
-                    server_reply[bytes_recvd] = '\0';
+                int bytes_recv = recv(sock, server_reply, BUFFER_SIZE, 0);
+                if(bytes_recv > 0) {
+                    server_reply[bytes_recv] = '\0';
                     printf("%s\n", server_reply);
                 }
                 memset(server_reply, 0, BUFFER_SIZE); // Clear for next loop
@@ -449,7 +450,7 @@ void show_employee_menu(int sock, const char* username){
                 memset(server_reply, 0, BUFFER_SIZE); // Clear for next loop
                 break;
             case 8:
-                char old_password[50], new_password[50];
+                char old_password[50], new_pass[50];
                 printf("Enter old password: ");
                 scanf("%s", old_password);
                 send(sock, old_password, strlen(old_password), 0);
@@ -460,8 +461,8 @@ void show_employee_menu(int sock, const char* username){
                 
                 if (strstr(server_reply, "Password match")) {
                     printf("Enter new password: ");
-                    scanf("%s", new_password);
-                    send(sock, new_password, strlen(new_password), 0);
+                    scanf("%s", new_pass);
+                    send(sock, new_pass, strlen(new_pass), 0);
 
                     memset(server_reply, 0, BUFFER_SIZE);
                     recv(sock, server_reply, BUFFER_SIZE, 0);

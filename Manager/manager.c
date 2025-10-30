@@ -24,7 +24,8 @@
 // const char manager_username[] = "BudgetBoss";
 // const char manager_password[] = "OnBudget";
 
-Manager mgr; //for authentication
+extern Manager managers[100]; //for authentication
+extern int manager_count;
 
 int authenticate_manager(const char* username, const char* password);
 int _mgr_load_customers_from_fd(int fd);
@@ -33,7 +34,7 @@ void Activate_Customer_Acc(int sock);
 void Deactivate_Customer_Acc(int sock);
 void Assign_LoanApp_to_Employee(int sock);
 void Review_Customer_feedback(int sock);
-void change_manager_password(int sock);
+void change_manager_password(int sock, const char* username);
 
 
 // NEW FUNCTION (Read-Only)
@@ -85,8 +86,9 @@ int authenticate_manager(const char* username, const char* password) {
                 line[line_pos + len] = '\0';
 
                 // Process the line
-                sscanf(line, "%s %s %d", mgr.username, mgr.password, &mgr.id);
-                if (strcmp(mgr.username, username) == 0 && strcmp(mgr.password, password) == 0) {
+                Manager auth_mgr;
+                sscanf(line, "%s %s %d", auth_mgr.username, auth_mgr.password, &auth_mgr.id);
+                if (strcmp(auth_mgr.username, username) == 0 && strcmp(auth_mgr.password, password) == 0) {
                     found = 1;
                     break;
                 }
@@ -106,6 +108,68 @@ int authenticate_manager(const char* username, const char* password) {
     flock(fd, LOCK_UN); 
     close(fd);
     return found;
+}
+
+int _mgr_load_managers_from_fd(int fd) {
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start of manager file");
+        return -1;
+    }
+    char buffer[BUFFER_SIZE * 4];
+    char line[BUFFER_SIZE];
+    int line_pos = 0;
+    ssize_t bytes_read;
+    manager_count = 0; 
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        char *ptr = buffer;
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
+                if (manager_count < 100) {
+                    sscanf(line, "%s %s %d", 
+                           managers[manager_count].username, 
+                           managers[manager_count].password, 
+                           &managers[manager_count].id);
+                    manager_count++;
+                }
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+    }
+    return manager_count;
+}
+
+// ADD THIS HELPER
+int _mgr_save_managers_to_fd(int fd) {
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start for writing");
+        return -1;
+    }
+    if (ftruncate(fd, 0) == -1) {
+        perror("Failed to truncate manager file");
+        return -1;
+    }
+    char buffer[BUFFER_SIZE];
+    for (int i = 0; i < manager_count; i++) {
+        snprintf(buffer, sizeof(buffer), "%s %s %d\n", 
+                 managers[i].username, managers[i].password, 
+                 managers[i].id);
+        if (write(fd, buffer, strlen(buffer)) == -1) {
+            perror("Failed to write manager to file");
+            return -1;
+        }
+    }
+    return 0; // Success
 }
 
 
@@ -223,7 +287,7 @@ void handle_manager_login(int sock) {
                     Review_Customer_feedback(sock);
                     break;
                 case 5:
-                    change_manager_password(sock);
+                    change_manager_password(sock, username);
                     break;
                 case 6:
                     printf("Manager logging out...\n");
@@ -491,31 +555,64 @@ void Review_Customer_feedback(int sock) {
 }
 
 
-void change_manager_password(int sock) {
+void change_manager_password(int sock, const char* username) {
     char old_password[50], new_password[50];
-    char buffer[BUFFER_SIZE];
+    int password_matched = 0;
 
-    const char *old_prompt = "Enter old password: ";
-    send(sock, old_prompt, strlen(old_prompt), 0);
-    int bytes = recv(sock, old_password, sizeof(old_password), 0);
-    old_password[bytes] = '\0';
-    old_password[strcspn(old_password, "\n")] = 0;
+    recv(sock, old_password, sizeof(old_password), 0);
+    old_password[strcspn(old_password, "\n")] = 0;  
 
-    if (strcmp(old_password, manager_password) != 0) {
-        const char *error_msg = "Old password did not match.";
-        send(sock, error_msg, strlen(error_msg), 0);
+    int fd = open(MANAGER_FILE, O_RDWR);
+    if (fd == -1) {
+        perror("Failed to open manager file");
+        send(sock, "Error: Database connection failed.\n", 33, 0);
         return;
     }
 
-    const char *new_prompt = "Password match! Enter new password: ";
-    send(sock, new_prompt, strlen(new_prompt), 0);
-    bytes = recv(sock, new_password, sizeof(new_password), 0);
-    new_password[bytes] = '\0';
-    new_password[strcspn(new_password, "\n")] = 0;
+    if (flock(fd, LOCK_EX) == -1) {
+        perror("Failed to lock manager file for password change");
+        close(fd);
+        send(sock, "Error: Bank is busy, try again.\n", 33, 0);
+        return;
+    }
 
-    // Update the password in memory
-    strcpy(manager_password, new_password);
+    // 1. READ
+    _mgr_load_managers_from_fd(fd);
 
-    const char *success_msg = "Password changed successfully!";
-    send(sock, success_msg, strlen(success_msg), 0);
+    // 2. MODIFY
+    int user_index = -1;
+    for (int i = 0; i < manager_count; i++) {
+        if (strcmp(managers[i].username, username) == 0 && strcmp(managers[i].password, old_password) == 0) {
+            password_matched = 1;
+            user_index = i;
+            break;
+        }
+    }
+
+    if (password_matched) {
+        const char *match_msg = "Password match! Enter new password.";
+        send(sock, match_msg, strlen(match_msg), 0);
+
+        recv(sock, new_password, sizeof(new_password), 0);
+        new_password[strcspn(new_password, "\n")] = 0;  
+
+        // Update in memory
+        strcpy(managers[user_index].password, new_password);  
+
+        // 3. WRITE
+        if (_mgr_save_managers_to_fd(fd) == 0) {
+            const char *success_msg = "Password changed successfully!";
+            send(sock, success_msg, strlen(success_msg), 0);
+        } else {
+            perror("CRITICAL: Failed to save password change");
+            send(sock, "Error: Failed to save new password.\n", 36, 0);
+        }
+
+    } else {
+        const char *error_msg = "Old password did not match.";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+
+    flock(fd, LOCK_UN);
+    close(fd);
 }

@@ -25,6 +25,8 @@ Employee emp;
 // Function prototypes
 int _emp_load_customers_from_fd(int fd);
 int _emp_save_customers_to_fd(int fd);
+int _emp_load_employees_from_fd(int fd);
+int _emp_save_employees_to_fd(int fd);
 int authenticate_employee(const char* username, const char* password);
 void handle_employee_login(int sock);
 void update_customer(int sock);
@@ -98,6 +100,74 @@ int _emp_save_customers_to_fd(int fd) {
         
         if (write(fd, buffer, strlen(buffer)) == -1) {
             perror("Failed to write customer to file");
+            return -1;
+        }
+    }
+    return 0; // Success
+}
+
+int _emp_load_employees_from_fd(int fd) {
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start of employee file");
+        return -1;
+    }
+
+    char buffer[BUFFER_SIZE * 4];
+    char line[BUFFER_SIZE];
+    int line_pos = 0;
+    ssize_t bytes_read;
+    emp_count = 0; // Reset global employee count
+
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        char *ptr = buffer;
+
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
+                
+                if (emp_count < 100) {
+                    sscanf(line, "%s %s %d", 
+                           employees[emp_count].username, 
+                           employees[emp_count].password, 
+                           &employees[emp_count].id);
+                    emp_count++;
+                }
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+    }
+    return emp_count;
+}
+
+// ADD THIS FULL FUNCTION
+int _emp_save_employees_to_fd(int fd) {
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start for writing");
+        return -1;
+    }
+    if (ftruncate(fd, 0) == -1) {
+        perror("Failed to truncate employee file");
+        return -1;
+    }
+
+    char buffer[BUFFER_SIZE];
+    for (int i = 0; i < emp_count; i++) {
+        snprintf(buffer, sizeof(buffer), "%s %s %d\n", 
+                 employees[i].username, employees[i].password, 
+                 employees[i].id);
+        
+        if (write(fd, buffer, strlen(buffer)) == -1) {
+            perror("Failed to write employee to file");
             return -1;
         }
     }
