@@ -351,13 +351,14 @@ void show_employee_menu(int sock, const char* username){
     while (1) {
         printf("Employee Menu:\n"
                "1. View All Customers\n"
-               "2. Loan Processing\n"
+               "2. Process Loan Applications (Approve/Reject All)\n"
                "3. Add Customer\n"
                "4. Remove Customer\n"
                "5. Update Customer\n"
                "6. View Customer Transactions (Passbook)\n"
-               "7. Change Password\n"
-               "8. Logout\n"
+               "7. View My Assigned Loans\n"
+               "8. Change Password\n"
+               "9. Logout\n"
                "Enter your choice: ");
         scanf("%d", &choice);
         sprintf(message, "%d", choice);  
@@ -438,6 +439,16 @@ void show_employee_menu(int sock, const char* username){
                 memset(server_reply, 0, BUFFER_SIZE); // Clear for next loop
                 break;
             case 7:
+                // Server will send back the list of assigned loans
+                memset(server_reply, 0, BUFFER_SIZE);
+                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE, 0);
+                if(bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);
+                }
+                memset(server_reply, 0, BUFFER_SIZE); // Clear for next loop
+                break;
+            case 8:
                 char old_password[50], new_password[50];
                 printf("Enter old password: ");
                 scanf("%s", old_password);
@@ -457,7 +468,7 @@ void show_employee_menu(int sock, const char* username){
                     printf("%s\n", server_reply);  // Confirmation message
                 }
                 break;
-            case 8:
+            case 9:
                 // Logout
                 printf("Logging out...\n");
                 exit(0);
@@ -522,7 +533,7 @@ void show_manager_menu(int sock, const char* username){
                         break; 
                 }
                 break;
-            case 5: // ADD THIS NEW CASE
+            case 5:
                 char old_password[50], new_password[50];
                 printf("Enter old password: ");
                 scanf("%s", old_password);

@@ -18,6 +18,7 @@
 #define LOAN_FILE "Customer/loans.txt"
 #define TRANSACTION_FILE "Customer/transaction_history.txt"
 #define EMPLOYEE_FILE "Employee/employees.txt"
+#define MANAGE_LOAN_FILE "manage_loan.txt"
 
 Employee emp;
 
@@ -237,6 +238,84 @@ void view_customer_transactions(int sock) {
     }
 }
 
+void view_assigned_loans(int sock, const char* username) {
+    char buffer[BUFFER_SIZE * 4]; // Large buffer for reading
+    char line[BUFFER_SIZE];
+    int line_pos = 0;
+    ssize_t bytes_read;
+    char assigned_loans[BUFFER_SIZE * 10] = ""; // Large buffer for sending
+    int history_len = 0;
+    int found = 0;
+
+    // 1. Open the manager's assignment file
+    int fd = open(MANAGE_LOAN_FILE, O_RDONLY | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("Failed to open assigned loans file");
+        send(sock, "Error: Could not retrieve assigned loans.\n", 41, 0);
+        return;
+    }
+
+    // 2. Get shared lock for reading
+    if (flock(fd, LOCK_SH) == -1) {
+        perror("Failed to lock assigned loans file");
+        close(fd);
+        send(sock, "Error: Server busy, try again.\n", 30, 0);
+        return;
+    }
+
+    const char *header = "--- Your Assigned Loans ---\n";
+    strcat(assigned_loans, header);
+    history_len += strlen(header);
+
+    // 3. Read and parse file
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        char *ptr = buffer;
+
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
+                
+                // Check if line contains the employee's username
+                // This assumes manager assigned to "employee1", "employee2", etc.
+                if (strstr(line, username) != NULL) {
+                    found = 1;
+                    // Append to history buffer if it fits
+                    if (history_len + len + 1 < sizeof(assigned_loans)) {
+                        strcat(assigned_loans, line);
+                        strcat(assigned_loans, "\n");
+                        history_len += len + 1;
+                    }
+                }
+                
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+    }
+
+    // 4. Unlock and close
+    flock(fd, LOCK_UN);
+    close(fd);
+
+    // 5. Send result
+    if (!found) {
+        send(sock, "You have no loans assigned to you.\n", 35, 0);
+    } else {
+        const char *footer = "--- End of List ---\n";
+        strcat(assigned_loans, footer);
+        send(sock, assigned_loans, strlen(assigned_loans), 0);
+    }
+}
+
 void handle_employee_login(int sock) {
     char username[50], password[50];
 
@@ -286,9 +365,12 @@ void handle_employee_login(int sock) {
                     view_customer_transactions(sock);
                     break;
                 case 7:
-                    change_employee_password(sock, username);
+                    view_assigned_loans(sock, username);
                     break;
                 case 8:
+                    change_employee_password(sock, username);
+                    break;
+                case 9:
                     printf("Employee logging out...\n");
                     close(sock);
                     return; // Exit thread
