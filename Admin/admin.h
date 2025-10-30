@@ -3,6 +3,7 @@
 
 #include "../Customer/customer.h" 
 #include "../Employee/employee.h" 
+#include "../Manager/manager.h"
 
 void handle_admin_login(int sock);
 void load_customers(int sock);
@@ -17,5 +18,9 @@ int is_employee_exists(const char *username, const char *password);
 void add_BankEmp(int sock);
 void change_admin_password(int sock);
 void modify_user_details(int sock);
+void manage_user_roles(int sock);
+void remove_BankEmp(int sock);
+void add_Manager(int sock);      
+void remove_Manager(int sock);
 
 #endif

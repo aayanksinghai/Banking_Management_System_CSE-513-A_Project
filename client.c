@@ -256,7 +256,7 @@ void show_admin_menu(int sock, const char* username){
                "1. View All Customers\n"
                "2. Add new Customer\n"
                "3. Remove Customer\n"
-               "4. Add Bank Employee\n"
+               "4. Manage User Roles\n"
                "5. Modify Customer/Employee Details\n" // ADD THIS
                "6. Change Password\n"
                "7. Logout\n"
@@ -290,13 +290,7 @@ void show_admin_menu(int sock, const char* username){
                 memset(server_reply, 0, BUFFER_SIZE);
                 break;
             case 4:
-                printf("Enter new Employee details (username password empid):");
-                scanf(" %[^\n]", message); 
-                message[strcspn(message, "\n")] = 0;
-                send(sock, message, strlen(message), 0); 
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); 
-                memset(server_reply, 0, BUFFER_SIZE);
+                show_manage_roles_menu(sock);
                 break;
             case 5: // ADD THIS NEW CASE
                 int user_type;
@@ -552,6 +546,68 @@ void show_manager_menu(int sock, const char* username){
                 // Logout
                 printf("Logging out...\n");
                 exit(0);
+            default:
+                printf("Invalid choice, please try again.\n");
+        }
+    }
+}
+
+void show_manage_roles_menu(int sock) {
+    int choice;
+    char message[BUFFER_SIZE];
+    char server_reply[BUFFER_SIZE];
+
+    while (1) {
+        printf("\nManage User Roles Menu:\n"
+               "1. Add Bank Employee\n"
+               "2. Remove Bank Employee\n"
+               "3. Add Manager\n"
+               "4. Remove Manager\n"
+               "5. Back to Admin Menu\n"
+               "Enter your choice: ");
+        scanf("%d", &choice);
+        sprintf(message, "%d", choice); 
+        send(sock, message, strlen(message), 0);
+
+        if (choice == 5) {
+            break; // Exit this menu
+        }
+
+        switch (choice) {
+            case 1: // Add Employee
+                printf("Enter new Employee details (username password empid):");
+                scanf(" %[^\n]", message); 
+                message[strcspn(message, "\n")] = 0;
+                send(sock, message, strlen(message), 0); 
+                recv(sock, server_reply, BUFFER_SIZE, 0);
+                printf("%s\n", server_reply); 
+                memset(server_reply, 0, BUFFER_SIZE);
+                break;
+            case 2: // Remove Employee
+                printf("Enter Employee ID to remove: ");
+                scanf("%s", message);
+                send(sock, message, strlen(message), 0);
+                recv(sock, server_reply, BUFFER_SIZE, 0);
+                printf("%s\n", server_reply); 
+                memset(server_reply, 0, BUFFER_SIZE);
+                break;
+            case 3: // Add Manager
+                printf("Enter new Manager details (username password managerid):");
+                scanf(" %[^\n]", message); 
+                message[strcspn(message, "\n")] = 0;
+                send(sock, message, strlen(message), 0); 
+                recv(sock, server_reply, BUFFER_SIZE, 0);
+                printf("%s\n", server_reply); 
+                memset(server_reply, 0, BUFFER_SIZE);
+                break;
+            case 4: // Remove Manager
+                printf("Enter Manager ID to remove: ");
+                scanf("%s", message);
+                send(sock, message, strlen(message), 0);
+                recv(sock, server_reply, BUFFER_SIZE, 0);
+                printf("%s\n", server_reply); 
+                memset(server_reply, 0, BUFFER_SIZE);
+                break;
             default:
                 printf("Invalid choice, please try again.\n");
         }

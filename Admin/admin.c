@@ -9,11 +9,13 @@
 #include "admin.h"
 #include "../Employee/employee.h"
 #include "../Customer/customer.h"
+#include "../Manager/manager.h"
 
 #define BUFFER_SIZE 1024
 #define MAX_CUSTOMERS 100
 #define CUSTOMER_FILE "Customer/customers.txt"
 #define EMPLOYEE_FILE "Employee/employees.txt"
+#define MANAGER_FILE "Manager/managers.txt"
 
 static char admin_username[] = "root";
 static char admin_password[] = "root";
@@ -21,6 +23,10 @@ static char admin_password[] = "root";
 Employee employees[100];
 int emp_count = 0;
 Employee new_employee;
+
+Manager managers[100];
+int manager_count = 0;
+Manager new_manager;
 
 
 // Helper to load all employees from an already-opened file descriptor
@@ -712,7 +718,7 @@ void handle_admin_login(int sock) {
                     remove_customer(sock);
                     break;
                 case 4:
-                    add_BankEmp(sock);
+                    manage_user_roles(sock);
                     break;
                 case 5: 
                     modify_user_details(sock);
@@ -763,4 +769,192 @@ void change_admin_password(int sock) {
 
     const char *success_msg = "Password changed successfully!";
     send(sock, success_msg, strlen(success_msg), 0);
+}
+
+
+// Helper to load all managers
+int _admin_load_managers_from_fd(int fd) {
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start of manager file");
+        return -1;
+    }
+    char buffer[BUFFER_SIZE * 4];
+    char line[BUFFER_SIZE];
+    int line_pos = 0;
+    ssize_t bytes_read;
+    manager_count = 0; 
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        char *ptr = buffer;
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
+                if (manager_count < 100) {
+                    sscanf(line, "%s %s %d", 
+                           managers[manager_count].username, 
+                           managers[manager_count].password, 
+                           &managers[manager_count].id);
+                    manager_count++;
+                }
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+    }
+    return manager_count;
+}
+
+// Helper to save all managers
+int _admin_save_managers_to_fd(int fd) {
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start for writing");
+        return -1;
+    }
+    if (ftruncate(fd, 0) == -1) {
+        perror("Failed to truncate manager file");
+        return -1;
+    }
+    char buffer[BUFFER_SIZE];
+    for (int i = 0; i < manager_count; i++) {
+        snprintf(buffer, sizeof(buffer), "%s %s %d\n", 
+                 managers[i].username, managers[i].password, 
+                 managers[i].id);
+        if (write(fd, buffer, strlen(buffer)) == -1) {
+            perror("Failed to write manager to file");
+            return -1;
+        }
+    }
+    return 0; // Success
+}
+
+// Helper to save one new manager
+void save_new_manager(Manager new_manager) {
+    int fd = open(MANAGER_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd == -1) {
+        perror("Failed to open managers file for appending");
+        exit(1);
+    }
+    if (flock(fd, LOCK_EX) == -1) {
+        perror("Failed to lock manager file");
+        close(fd);
+        exit(1);
+    }
+    char buffer[BUFFER_SIZE];
+    snprintf(buffer, sizeof(buffer), "%s %s %d\n", 
+             new_manager.username, new_manager.password, new_manager.id);
+    if (write(fd, buffer, strlen(buffer)) == -1) {
+        perror("Failed to write new manager");
+    }
+    flock(fd, LOCK_UN);
+    close(fd);
+}
+
+
+void add_Manager(int sock) {
+    char message[BUFFER_SIZE];
+    recv(sock, message, BUFFER_SIZE, 0);
+    sscanf(message, "%s %s %d", new_manager.username, new_manager.password, &new_manager.id);
+    
+    // Check if manager exists (need is_manager_exists helper)
+    // For now, we'll just add
+    
+    managers[manager_count++] = new_manager;
+    save_new_manager(new_manager);
+    const char *success_msg = "Manager added successfully!";
+    send(sock, success_msg, strlen(success_msg), 0);
+}
+
+void remove_BankEmp(int sock) {
+    char message[BUFFER_SIZE];
+    int id_to_remove, found = 0;
+    recv(sock, message, BUFFER_SIZE, 0);
+    sscanf(message, "%d", &id_to_remove);
+
+    int fd = open(EMPLOYEE_FILE, O_RDWR);
+    if (fd == -1) { /* error */ return; }
+    flock(fd, LOCK_EX);
+    _admin_load_employees_from_fd(fd);
+
+    for (int i = 0; i < emp_count; i++) {
+        if (employees[i].id == id_to_remove) {
+            found = 1;
+            for (int j = i; j < emp_count - 1; j++) {
+                employees[j] = employees[j + 1];
+            }
+            emp_count--;
+            _admin_save_employees_to_fd(fd);
+            break;
+        }
+    }
+    flock(fd, LOCK_UN);
+    close(fd);
+
+    if (found) {
+        send(sock, "Employee removed successfully!", 29, 0);
+    } else {
+        send(sock, "Employee ID not found!", 22, 0);
+    }
+}
+
+void remove_Manager(int sock) {
+    char message[BUFFER_SIZE];
+    int id_to_remove, found = 0;
+    recv(sock, message, BUFFER_SIZE, 0);
+    sscanf(message, "%d", &id_to_remove);
+
+    int fd = open(MANAGER_FILE, O_RDWR);
+    if (fd == -1) { /* error */ return; }
+    flock(fd, LOCK_EX);
+    _admin_load_managers_from_fd(fd);
+
+    for (int i = 0; i < manager_count; i++) {
+        if (managers[i].id == id_to_remove) {
+            found = 1;
+            for (int j = i; j < manager_count - 1; j++) {
+                managers[j] = managers[j + 1];
+            }
+            manager_count--;
+            _admin_save_managers_to_fd(fd);
+            break;
+        }
+    }
+    flock(fd, LOCK_UN);
+    close(fd);
+
+    if (found) {
+        send(sock, "Manager removed successfully!", 28, 0);
+    } else {
+        send(sock, "Manager ID not found!", 21, 0);
+    }
+}
+
+void manage_user_roles(int sock) {
+    char choice_buffer[4];
+    recv(sock, choice_buffer, sizeof(choice_buffer), 0);
+    int choice = atoi(choice_buffer);
+
+    switch (choice) {
+        case 1:
+            add_BankEmp(sock);
+            break;
+        case 2:
+            remove_BankEmp(sock);
+            break;
+        case 3:
+            add_Manager(sock);
+            break;
+        case 4:
+            remove_Manager(sock);
+            break;
+        default:
+            send(sock, "Invalid choice.\n", 17, 0);
+    }
 }

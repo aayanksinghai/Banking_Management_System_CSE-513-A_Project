@@ -3,6 +3,12 @@
 
 #include "../Customer/customer.h" 
 
+typedef struct {
+    char username[50];
+    char password[50];
+    int id;
+} Manager;
+
 void handle_manager_login(int sock);
 void Activate_Customer_Acc(int sock);
 void Deactivate_Customer_Acc(int sock);

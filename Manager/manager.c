@@ -19,10 +19,14 @@
 #define LOAN_FILE "Customer/loans.txt"
 #define FEEDBACK_FILE "Customer/feedback.txt"
 #define MANAGE_LOAN_FILE "manage_loan.txt" // New define for clarity
+#define MANAGER_FILE "Manager/managers.txt"
 
-const char manager_username[] = "BudgetBoss";
-const char manager_password[] = "OnBudget";
+// const char manager_username[] = "BudgetBoss";
+// const char manager_password[] = "OnBudget";
 
+Manager mgr; //for authentication
+
+int authenticate_manager(const char* username, const char* password);
 int _mgr_load_customers_from_fd(int fd);
 int _mgr_save_customers_to_fd(int fd);
 void Activate_Customer_Acc(int sock);
@@ -30,6 +34,79 @@ void Deactivate_Customer_Acc(int sock);
 void Assign_LoanApp_to_Employee(int sock);
 void Review_Customer_feedback(int sock);
 void change_manager_password(int sock)
+
+
+// NEW FUNCTION (Read-Only)
+int authenticate_manager(const char* username, const char* password) {
+    int fd = open(MANAGER_FILE, O_RDONLY | O_CREAT, 0644);
+    if (fd == -1) {
+        // If file doesn't exist, create it with the default manager
+        if (errno == ENOENT) {
+            fd = open(MANAGER_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (fd == -1) {
+                perror("Failed to create manager file");
+                return 0;
+            }
+            // Add the original hard-coded manager
+            const char *default_manager = "BudgetBoss OnBudget 901\n";
+            write(fd, default_manager, strlen(default_manager));
+            close(fd);
+            
+            // Re-open for reading
+            fd = open(MANAGER_FILE, O_RDONLY);
+            if (fd == -1) return 0; // Failed
+        } else {
+            perror("Failed to open manager file");
+            return 0;
+        }
+    }
+    
+    if (flock(fd, LOCK_SH) == -1) {
+        perror("Failed to lock manager file");
+        close(fd);
+        return 0;
+    }
+
+    char buffer[BUFFER_SIZE * 2];
+    char line[BUFFER_SIZE];
+    int line_pos = 0;
+    ssize_t bytes_read;
+    int found = 0;
+
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        char *ptr = buffer;
+
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
+
+                // Process the line
+                sscanf(line, "%s %s %d", mgr.username, mgr.password, &mgr.id);
+                if (strcmp(mgr.username, username) == 0 && strcmp(mgr.password, password) == 0) {
+                    found = 1;
+                    break;
+                }
+                
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+        if (found) break;
+    }
+
+    flock(fd, LOCK_UN); 
+    close(fd);
+    return found;
+}
 
 
 // Helper to load all customers from an already-opened file descriptor
@@ -118,7 +195,7 @@ void handle_manager_login(int sock) {
     recv(sock, password, sizeof(password), 0);
     password[strcspn(password, "\n")] = 0;
 
-    if (strcmp(username, manager_username) == 0 && strcmp(password, manager_password) == 0) {
+    if (authenticate_manager(username, password)) {
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
 
