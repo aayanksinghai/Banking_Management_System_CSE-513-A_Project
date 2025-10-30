@@ -5,7 +5,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/file.h>
-#include <fnctl.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "admin.h"
 #include "../Employee/employee.h"
 #include "../Customer/customer.h"
@@ -116,7 +117,7 @@ void add_BankEmp(int sock){
 int is_employee_exists(const char *username, const char *password) {
     int fd = open(EMPLOYEE_FILE, O_RDONLY); //open sys call
     if (fd == -1) {
-        if(errono == ENOENT){
+        if(errno == ENOENT){
             fd = open(EMPLOYEE_FILE, O_CREAT, 0644);
             if(fd != -1) close(fd);
             return 0;
@@ -240,7 +241,7 @@ void save_new_employee(Employee new_employee) {
     */
 }
 
-void load_customers() {
+void load_customers(int sock) {
 
     int fd = open(CUSTOMER_FILE, O_RDONLY);
     if (fd == -1) {
@@ -255,7 +256,7 @@ void load_customers() {
         return;
     }
 
-    if (flock(fileno(file), LOCK_SH) == -1) {
+    if (flock(fd, LOCK_SH) == -1) {
         perror("Failed to lock customer file");
         close(fd);
         send(sock, "Error: Could not lock customer database.\n", 40, 0);

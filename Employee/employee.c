@@ -29,7 +29,7 @@ int authenticate_employee(const char* username, const char* password);
 void handle_employee_login(int sock);
 void update_customer(int sock);
 void Process_LoanApp(int sock);
-void change_employee_password(int sock, const char* username)
+void change_employee_password(int sock, const char* username);
 
 
 
@@ -471,7 +471,7 @@ void Process_LoanApp(int sock) {
     const char *header_msg = "Processing loan applications:\n";
     send(sock, header_msg, strlen(header_msg), 0);
 
-    /while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytes_read] = '\0';
         char *ptr = buffer;
 

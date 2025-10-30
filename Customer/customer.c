@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <sys/file.h>
 #include <time.h>
-#include <errono.h>
+#include <errno.h>
 #include "customer.h"
 
 
@@ -213,7 +213,7 @@ int authenticate_customer(const char *username, const char *password) {
 
     if (flock(fd, LOCK_SH) == -1) {
         perror("Failed to lock customer file");
-        fclose(file);
+        close(fd);
         return 0;
     }
 
@@ -292,7 +292,7 @@ void deposit_money(const char *username, int sock) {
         return;
     }
 
-    if (flock(fileno(file), LOCK_SH) == -1) {
+    if (flock(fd, LOCK_SH) == -1) {
         perror("Failed to lock customer file for deposit");
         close(fd);
         send(sock, "Error: Bank is busy, try again.\n", 33, 0);
@@ -355,7 +355,7 @@ void withdraw_money(const char *username, int sock) {
         send(sock, "Error: Database connection failed.\n", 33, 0);
         return;
     }
-    if (flock(fileno(file), LOCK_SH) == -1) {
+    if (flock(fd, LOCK_SH) == -1) {
         perror("Failed to lock customer file for withdrawal");
         close(fd);
         send(sock, "Error: Bank is busy, try again.\n", 33, 0);
@@ -421,7 +421,7 @@ void transfer_funds(const char *username, int sock) {
         return;
     }
 
-    if (flock(fileno(file), LOCK_SH) == -1) {
+    if (flock(fd, LOCK_SH) == -1) {
         perror("Failed to lock customer file for transfer");
         close(fd);
         send(sock, "Error: Bank is busy, try again.\n", 33, 0);
