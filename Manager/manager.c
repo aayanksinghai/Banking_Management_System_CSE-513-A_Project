@@ -29,6 +29,7 @@ void Activate_Customer_Acc(int sock);
 void Deactivate_Customer_Acc(int sock);
 void Assign_LoanApp_to_Employee(int sock);
 void Review_Customer_feedback(int sock);
+void change_manager_password(int sock)
 
 
 // Helper to load all customers from an already-opened file descriptor
@@ -145,6 +146,9 @@ void handle_manager_login(int sock) {
                     Review_Customer_feedback(sock);
                     break;
                 case 5:
+                    change_manager_password(sock);
+                    break;
+                case 6:
                     printf("Manager logging out...\n");
                     close(sock);
                     return; // Exit thread
@@ -407,4 +411,34 @@ void Review_Customer_feedback(int sock) {
 
     flock(fd, LOCK_UN);
     close(fd);
+}
+
+
+void change_manager_password(int sock) {
+    char old_password[50], new_password[50];
+    char buffer[BUFFER_SIZE];
+
+    const char *old_prompt = "Enter old password: ";
+    send(sock, old_prompt, strlen(old_prompt), 0);
+    int bytes = recv(sock, old_password, sizeof(old_password), 0);
+    old_password[bytes] = '\0';
+    old_password[strcspn(old_password, "\n")] = 0;
+
+    if (strcmp(old_password, manager_password) != 0) {
+        const char *error_msg = "Old password did not match.";
+        send(sock, error_msg, strlen(error_msg), 0);
+        return;
+    }
+
+    const char *new_prompt = "Password match! Enter new password: ";
+    send(sock, new_prompt, strlen(new_prompt), 0);
+    bytes = recv(sock, new_password, sizeof(new_password), 0);
+    new_password[bytes] = '\0';
+    new_password[strcspn(new_password, "\n")] = 0;
+
+    // Update the password in memory
+    strcpy(manager_password, new_password);
+
+    const char *success_msg = "Password changed successfully!";
+    send(sock, success_msg, strlen(success_msg), 0);
 }

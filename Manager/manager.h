@@ -8,5 +8,6 @@ void Activate_Customer_Acc(int sock);
 void Deactivate_Customer_Acc(int sock);
 void Assign_LoanApp_to_Employee(int sock);
 void Review_Customer_feedback(int sock);
+void change_manager_password(int sock);
 
 #endif

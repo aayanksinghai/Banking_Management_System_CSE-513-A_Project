@@ -257,7 +257,8 @@ void show_admin_menu(int sock, const char* username){
                "2. Add new Customer\n"
                "3. Remove Customer\n"
                "4. Add Bank Employee\n"
-               "5. Logout\n"
+               "5. Change Password\n"
+               "6. Logout\n"
                "Enter your choice: ");
         scanf("%d", &choice);
         sprintf(message, "%d", choice); 
@@ -296,7 +297,27 @@ void show_admin_menu(int sock, const char* username){
                 printf("%s\n", server_reply); 
                 memset(server_reply, 0, BUFFER_SIZE);
                 break;
-            case 5:
+            case 5: // ADD THIS NEW CASE
+                char old_password[50], new_password[50];
+                printf("Enter old password: ");
+                scanf("%s", old_password);
+                send(sock, old_password, strlen(old_password), 0);
+                
+                memset(server_reply, 0, BUFFER_SIZE);
+                recv(sock, server_reply, BUFFER_SIZE, 0);
+                printf("%s\n", server_reply);  // Password match or mismatch
+                
+                if (strstr(server_reply, "Password match")) {
+                    printf("Enter new password: ");
+                    scanf("%s", new_password);
+                    send(sock, new_password, strlen(new_password), 0);
+
+                    memset(server_reply, 0, BUFFER_SIZE);
+                    recv(sock, server_reply, BUFFER_SIZE, 0);
+                    printf("%s\n", server_reply);  // Confirmation message
+                }
+                break;
+            case 6:
                 printf("Logging Out...\n");
                 exit(0);
             default:
@@ -317,7 +338,8 @@ void show_employee_menu(int sock, const char* username){
                "3. Add Customer\n"
                "4. Remove Customer\n"
                "5. Update Customer\n"
-               "6. Logout\n"
+               "6. Change Password\n"
+               "7. Logout\n"
                "Enter your choice: ");
         scanf("%d", &choice);
         sprintf(message, "%d", choice);  
@@ -383,8 +405,27 @@ void show_employee_menu(int sock, const char* username){
                         break;
                 }
                 break; 
-
             case 6:
+                char old_password[50], new_password[50];
+                printf("Enter old password: ");
+                scanf("%s", old_password);
+                send(sock, old_password, strlen(old_password), 0);
+                
+                memset(server_reply, 0, BUFFER_SIZE);
+                recv(sock, server_reply, BUFFER_SIZE, 0);
+                printf("%s\n", server_reply);  // Password match or mismatch
+                
+                if (strstr(server_reply, "Password match")) {
+                    printf("Enter new password: ");
+                    scanf("%s", new_password);
+                    send(sock, new_password, strlen(new_password), 0);
+
+                    memset(server_reply, 0, BUFFER_SIZE);
+                    recv(sock, server_reply, BUFFER_SIZE, 0);
+                    printf("%s\n", server_reply);  // Confirmation message
+                }
+                break;
+            case 7:
                 // Logout
                 printf("Logging out...\n");
                 exit(0);
@@ -406,7 +447,8 @@ void show_manager_menu(int sock, const char* username){
                "2. Deactivate Customer Account\n"
                "3. Assign Loan Application to Employee\n"
                "4. Review Feedback \n"
-               "5. Logout\n"
+               "5. Change Password\n"
+               "6. Logout\n"
                "Enter your choice: ");
         scanf("%d", &choice);
         sprintf(message, "%d", choice);  
@@ -448,7 +490,27 @@ void show_manager_menu(int sock, const char* username){
                         break; 
                 }
                 break;
-            case 5:
+            case 5: // ADD THIS NEW CASE
+                char old_password[50], new_password[50];
+                printf("Enter old password: ");
+                scanf("%s", old_password);
+                send(sock, old_password, strlen(old_password), 0);
+                
+                memset(server_reply, 0, BUFFER_SIZE);
+                recv(sock, server_reply, BUFFER_SIZE, 0);
+                printf("%s\n", server_reply);  // Password match or mismatch
+                
+                if (strstr(server_reply, "Password match")) {
+                    printf("Enter new password: ");
+                    scanf("%s", new_password);
+                    send(sock, new_password, strlen(new_password), 0);
+
+                    memset(server_reply, 0, BUFFER_SIZE);
+                    recv(sock, server_reply, BUFFER_SIZE, 0);
+                    printf("%s\n", server_reply);  // Confirmation message
+                }
+                break;
+            case 6:
                 // Logout
                 printf("Logging out...\n");
                 exit(0);

@@ -28,6 +28,7 @@ int authenticate_employee(const char* username, const char* password);
 void handle_employee_login(int sock);
 void update_customer(int sock);
 void Process_LoanApp(int sock);
+void change_employee_password(int sock, const char* username)
 
 
 
@@ -205,6 +206,9 @@ void handle_employee_login(int sock) {
                     update_customer(sock);
                     break;
                 case 6:
+                    change_employee_password(sock, username);
+                    break;
+                case 7:
                     printf("Employee logging out...\n");
                     close(sock);
                     return; // Exit thread
@@ -352,6 +356,68 @@ void Process_LoanApp(int sock) {
 
     const char *completion_msg = "Loan processing completed.\n";
     send(sock, completion_msg, strlen(completion_msg), 0);
+}
+
+void change_employee_password(int sock, const char* username) {
+    char old_password[50], new_password[50];
+    int password_matched = 0;
+
+    recv(sock, old_password, sizeof(old_password), 0);
+    old_password[strcspn(old_password, "\n")] = 0;  
+
+    int fd = open(EMPLOYEE_FILE, O_RDWR | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("Failed to open employee file");
+        send(sock, "Error: Database connection failed.\n", 33, 0);
+        return;
+    }
+
+    if (flock(fd, LOCK_EX) == -1) {
+        perror("Failed to lock employee file for password change");
+        close(fd);
+        send(sock, "Error: Bank is busy, try again.\n", 33, 0);
+        return;
+    }
+
+    // 1. READ
+    _emp_load_employees_from_fd(fd);
+
+    // 2. MODIFY
+    int user_index = -1;
+    for (int i = 0; i < emp_count; i++) {
+        if (strcmp(employees[i].username, username) == 0 && strcmp(employees[i].password, old_password) == 0) {
+            password_matched = 1;
+            user_index = i;
+            break;
+        }
+    }
+
+    if (password_matched) {
+        const char *match_msg = "Password match! Enter new password.";
+        send(sock, match_msg, strlen(match_msg), 0);
+
+        recv(sock, new_password, sizeof(new_password), 0);
+        new_password[strcspn(new_password, "\n")] = 0;  
+        
+        // Update in memory
+        strcpy(employees[user_index].password, new_password);  
+                
+        // 3. WRITE
+        if (_emp_save_employees_to_fd(fd) == 0) {
+            const char *success_msg = "Password changed successfully!";
+            send(sock, success_msg, strlen(success_msg), 0);
+        } else {
+            perror("CRITICAL: Failed to save password change");
+            send(sock, "Error: Failed to save new password.\n", 36, 0);
+        }
+
+    } else {
+        const char *error_msg = "Old password did not match.";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+    
+    flock(fd, LOCK_UN);
+    close(fd);
 }
 
 

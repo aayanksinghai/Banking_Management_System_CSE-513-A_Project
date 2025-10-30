@@ -15,8 +15,8 @@
 #define CUSTOMER_FILE "Customer/customers.txt"
 #define EMPLOYEE_FILE "Employee/employees.txt"
 
-const char admin_username[] = "root";
-const char admin_password[] = "root";
+static char admin_username[] = "root";
+static char admin_password[] = "root";
 
 Employee employees[100];
 int emp_count = 0;
@@ -529,6 +529,9 @@ void handle_admin_login(int sock) {
                     add_BankEmp(sock);
                     break;
                 case 5:
+                    change_admin_password(sock);
+                    break;
+                case 6:
                     printf("Logging out...");
                     close(sock);
                     return;
@@ -542,4 +545,33 @@ void handle_admin_login(int sock) {
         send(sock, error_msg, strlen(error_msg), 0);
     }
     close(sock);
+}
+
+void change_admin_password(int sock) {
+    char old_password[50], new_password[50];
+    char buffer[BUFFER_SIZE];
+
+    const char *old_prompt = "Enter old password: ";
+    send(sock, old_prompt, strlen(old_prompt), 0);
+    int bytes = recv(sock, old_password, sizeof(old_password), 0);
+    old_password[bytes] = '\0';
+    old_password[strcspn(old_password, "\n")] = 0;
+
+    if (strcmp(old_password, admin_password) != 0) {
+        const char *error_msg = "Old password did not match.";
+        send(sock, error_msg, strlen(error_msg), 0);
+        return;
+    }
+
+    const char *new_prompt = "Password match! Enter new password: ";
+    send(sock, new_prompt, strlen(new_prompt), 0);
+    bytes = recv(sock, new_password, sizeof(new_password), 0);
+    new_password[bytes] = '\0';
+    new_password[strcspn(new_password, "\n")] = 0;
+
+    // Update the password in memory
+    strcpy(admin_password, new_password);
+
+    const char *success_msg = "Password changed successfully!";
+    send(sock, success_msg, strlen(success_msg), 0);
 }
