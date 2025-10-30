@@ -160,6 +160,83 @@ int authenticate_employee(const char* username, const char* password) {
     return found;
 }
 
+void view_customer_transactions(int sock) {
+    char username[50];
+    char buffer[BUFFER_SIZE * 4]; // Large buffer for reading
+    char line[BUFFER_SIZE];
+    int line_pos = 0;
+    ssize_t bytes_read;
+    char history[BUFFER_SIZE * 10] = ""; // Large buffer for sending
+    int history_len = 0;
+    int found = 0;
+
+    // 1. Get username from client
+    int bytes = recv(sock, username, sizeof(username) - 1, 0);
+    username[bytes] = '\0';
+    username[strcspn(username, "\n")] = 0;
+
+    // 2. Open transaction file
+    int fd = open(TRANSACTION_FILE, O_RDONLY | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("Failed to open transaction history file");
+        send(sock, "Error: Could not retrieve history.\n", 35, 0);
+        return;
+    }
+
+    // 3. Get shared lock for reading
+    if (flock(fd, LOCK_SH) == -1) {
+        perror("Failed to lock transaction file");
+        close(fd);
+        send(sock, "Error: Server busy, try again.\n", 30, 0);
+        return;
+    }
+
+    // 4. Read and parse file
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        char *ptr = buffer;
+
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
+                
+                // Check if line contains the *requested* username
+                if (strstr(line, username) != NULL) {
+                    found = 1;
+                    // Append to history buffer if it fits
+                    if (history_len + len + 1 < sizeof(history)) {
+                        strcat(history, line);
+                        strcat(history, "\n");
+                        history_len += len + 1;
+                    }
+                }
+                
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+    }
+
+    // 5. Unlock and close
+    flock(fd, LOCK_UN);
+    close(fd);
+
+    // 6. Send result
+    if (!found) {
+        send(sock, "No transaction history found for that user.\n", 44, 0);
+    } else {
+        send(sock, history, strlen(history), 0);
+    }
+}
+
 void handle_employee_login(int sock) {
     char username[50], password[50];
 
@@ -206,9 +283,12 @@ void handle_employee_login(int sock) {
                     update_customer(sock);
                     break;
                 case 6:
-                    change_employee_password(sock, username);
+                    view_customer_transactions(sock);
                     break;
                 case 7:
+                    change_employee_password(sock, username);
+                    break;
+                case 8:
                     printf("Employee logging out...\n");
                     close(sock);
                     return; // Exit thread

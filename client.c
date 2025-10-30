@@ -361,8 +361,9 @@ void show_employee_menu(int sock, const char* username){
                "3. Add Customer\n"
                "4. Remove Customer\n"
                "5. Update Customer\n"
-               "6. Change Password\n"
-               "7. Logout\n"
+               "6. View Customer Transactions (Passbook)\n"
+               "7. Change Password\n"
+               "8. Logout\n"
                "Enter your choice: ");
         scanf("%d", &choice);
         sprintf(message, "%d", choice);  
@@ -429,6 +430,20 @@ void show_employee_menu(int sock, const char* username){
                 }
                 break; 
             case 6:
+                char search_username[50];
+                printf("Enter customer username to view transactions: ");
+                scanf("%s", search_username);
+                send(sock, search_username, strlen(search_username), 0);
+
+                memset(server_reply, 0, BUFFER_SIZE);
+                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE, 0);
+                if(bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);
+                }
+                memset(server_reply, 0, BUFFER_SIZE); // Clear for next loop
+                break;
+            case 7:
                 char old_password[50], new_password[50];
                 printf("Enter old password: ");
                 scanf("%s", old_password);
@@ -448,7 +463,7 @@ void show_employee_menu(int sock, const char* username){
                     printf("%s\n", server_reply);  // Confirmation message
                 }
                 break;
-            case 7:
+            case 8:
                 // Logout
                 printf("Logging out...\n");
                 exit(0);

@@ -11,6 +11,7 @@ void update_customer(int sock);
 void handle_employee_login(int sock);
 int authenticate_employee(const char* username, const char* password);
 void change_employee_password(int sock, const char* username);
+void view_customer_transactions(int sock);
 
 typedef struct {
     char username[50];
