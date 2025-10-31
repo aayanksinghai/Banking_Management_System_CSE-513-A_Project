@@ -974,16 +974,70 @@ void save_new_manager(Manager new_manager) {
 
 void add_Manager(int sock) {
     char message[BUFFER_SIZE];
-    recv(sock, message, BUFFER_SIZE, 0);
-    sscanf(message, "%s %s %d", new_manager.username, new_manager.password, &new_manager.id);
+    char success_msg[BUFFER_SIZE]; // For sending the new ID back
+    Manager new_manager; // Use a local struct
+
+    // 1. Receive the shorter string (no ID)
+    memset(message, 0, BUFFER_SIZE);
+    recv(sock, message, BUFFER_SIZE - 1, 0);
+    sscanf(message, "%s %s", new_manager.username, new_manager.password);
+
+    // --- 2. Open and Lock File ---
+    int fd = open(MANAGER_FILE, O_RDWR | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("Failed to open manager file for add");
+        send(sock, "Error: Database failure.\n", 25, 0);
+        return;
+    }
+    if (flock(fd, LOCK_EX) == -1) { // Get EXCLUSIVE lock
+        perror("Failed to lock manager file for add");
+        close(fd);
+        send(sock, "Error: Database busy, try again.\n", 33, 0);
+        return;
+    }
+
+    // --- 3. Load all managers ---
+    _admin_load_managers_from_fd(fd); // This populates the global 'managers' array
+
+    // --- 4. Check for username conflicts ---
+    for (int i = 0; i < manager_count; i++) {
+        if (strcmp(managers[i].username, new_manager.username) == 0) {
+            const char *error_msg = "Error: Manager with this username already exists!";
+            send(sock, error_msg, strlen(error_msg), 0);
+            flock(fd, LOCK_UN);
+            close(fd);
+            return;
+        }
+    }
+
+    // --- 5. Find the highest existing ID ---
+    int max_id = 0;
+    for (int i = 0; i < manager_count; i++) {
+        if (managers[i].id > max_id) {
+            max_id = managers[i].id;
+        }
+    }
     
-    // Check if manager exists (need is_manager_exists helper)
-    // For now, we'll just add
-    
+    // Set new ID. Start at 900 if no managers, else increment.
+    // (Using 900 to distinguish from Customer and Employee IDs)
+    new_manager.id = (max_id == 0) ? 900 : max_id + 1;
+
+    // --- 6. No conflicts, add to array ---
     managers[manager_count++] = new_manager;
-    save_new_manager(new_manager);
-    const char *success_msg = "Manager added successfully!";
-    send(sock, success_msg, strlen(success_msg), 0);
+    
+    // --- 7. Save array back to file ---
+    if (_admin_save_managers_to_fd(fd) == 0) {
+        // Send a success message that includes the new ID
+        snprintf(success_msg, sizeof(success_msg), "Manager added successfully! New Manager ID is: %d", new_manager.id);
+        send(sock, success_msg, strlen(success_msg), 0);
+    } else {
+        const char *error_msg = "Error: Failed to save new manager.";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+
+    // --- 8. Unlock and Close ---
+    flock(fd, LOCK_UN);
+    close(fd);
 }
 
 void remove_BankEmp(int sock) {

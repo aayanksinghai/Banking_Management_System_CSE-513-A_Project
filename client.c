@@ -659,7 +659,7 @@ void show_manage_roles_menu(int sock) {
                 memset(server_reply, 0, BUFFER_SIZE);
                 break;
             case 3: // Add Manager
-                printf("Enter new Manager details (username password managerid):");
+                printf("Enter new Manager details (username password):");
                 scanf(" %[^\n]", message); 
                 message[strcspn(message, "\n")] = 0;
                 send(sock, message, strlen(message), 0); 
