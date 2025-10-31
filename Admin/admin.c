@@ -241,26 +241,13 @@ void save_new_employee(Employee new_employee) {
     */
 }
 
-void load_customers(int sock) {
+int _admin_load_customers_from_fd(int fd, int sock) {
 
-    int fd = open(CUSTOMER_FILE, O_RDONLY);
-    if (fd == -1) {
-        if (errno == ENOENT) { // File not found
-             fd = open(CUSTOMER_FILE, O_CREAT, 0644); // Create file
-             if(fd != -1) close(fd);
-             customer_count = 0; // No customers yet
-             return;
-        }
-        perror("Failed to open customers file");
-        send(sock, "Error: Could not open customer database.\n", 40, 0);
-        return;
-    }
-
-    if (flock(fd, LOCK_SH) == -1) {
-        perror("Failed to lock customer file");
-        close(fd);
-        send(sock, "Error: Could not lock customer database.\n", 40, 0);
-        return;
+    // Rewind file descriptor to the beginning
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start of customer file");
+        send(sock, "Error: Could not read database.\n", 31, 0);
+        return -1;
     }
 
     char buffer[BUFFER_SIZE * 4]; // Larger buffer for reading file
@@ -269,7 +256,7 @@ void load_customers(int sock) {
     ssize_t bytes_read;
 
     customer_count = 0; // Reset count
-    
+
     while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytes_read] = '\0';
         char *ptr = buffer;
@@ -280,7 +267,7 @@ void load_customers(int sock) {
                 int len = newline - ptr;
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
-                
+
                 // Process the complete line
                 if (customer_count < MAX_CUSTOMERS) {
                     sscanf(line, "%s %s %f %d %d", 
@@ -291,7 +278,7 @@ void load_customers(int sock) {
                            &customers[customer_count].is_active);
                     customer_count++;
                 }
-                
+
                 line[0] = '\0';
                 line_pos = 0;
                 ptr = newline + 1;
@@ -302,43 +289,18 @@ void load_customers(int sock) {
             }
         }
     }
-
-    flock(fd, LOCK_UN);
-    close(fd);
-
-    /*
-    FILE *file = fopen(CUSTOMER_FILE, "r");
-    if (file == NULL) {
-        perror("Failed to open customers file");
-        exit(1);
-    }
-
-    flock(fileno(file), LOCK_SH);
-
-    customer_count = 0;
-    while (fscanf(file, "%s %s %f %d %d", customers[customer_count].username, customers[customer_count].password, 
-                  &customers[customer_count].balance, &customers[customer_count].id, &customers[customer_count].is_active) != EOF) {
-        customer_count++;
-    }
-    flock(fileno(file), LOCK_UN);
-    fclose(file);
-
-    */
+    return customer_count;
 }
 
-void save_customers() {
-
-    // Open with flags: Write-Only, Create if not exist, Truncate (clear) file
-    int fd = open(CUSTOMER_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd == -1) {
-        perror("Failed to open customers file for writing");
-        exit(1);
+int _admin_save_customers_to_fd(int fd) {
+    // Rewind and truncate the file (clear it)
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Failed to lseek to start for writing");
+        return -1;
     }
-
-    if (flock(fd, LOCK_EX) == -1) {
-        perror("Failed to lock customers file");
-        close(fd);
-        exit(1);
+    if (ftruncate(fd, 0) == -1) {
+        perror("Failed to truncate customer file");
+        return -1;
     }
 
     char buffer[BUFFER_SIZE];
@@ -346,32 +308,13 @@ void save_customers() {
         snprintf(buffer, sizeof(buffer), "%s %s %.2f %d %d\n", 
                  customers[i].username, customers[i].password, 
                  customers[i].balance, customers[i].id, customers[i].is_active);
-        
+
         if (write(fd, buffer, strlen(buffer)) == -1) {
             perror("Failed to write customer to file");
-            // Decide if we should break or continue
+            return -1; // Stop on write error
         }
     }
-
-    flock(fd, LOCK_UN);
-    close(fd);
-
-    /*
-    FILE *file = fopen(CUSTOMER_FILE, "w");
-    if (file == NULL) {
-        perror("Failed to open customers file for writing");
-        exit(1);
-    }
-
-    flock(fileno(file), LOCK_EX);
-
-    for (int i = 0; i < customer_count; i++) {
-        fprintf(file, "%s %s %.2f %d %d\n", customers[i].username, customers[i].password, 
-                customers[i].balance, customers[i].id, customers[i].is_active);
-    }
-    flock(fileno(file), LOCK_UN);
-    fclose(file);
-    */
+    return 0; // Success
 }
 
 
@@ -519,26 +462,56 @@ void add_customer(int sock) {
     send(sock, success_msg, strlen(success_msg), 0);
 }
 
-
 void view_all_customer(int sock) {
     char buffer[BUFFER_SIZE];
+    // A large buffer to hold all customer data
+    char all_customers_buffer[BUFFER_SIZE * 10] = {0}; 
 
-    load_customers(sock);
-    // Check if load_customers set count to 0 (e.g., file was empty)
+    int fd = open(CUSTOMER_FILE, O_RDONLY | O_CREAT, 0644);
+    if (fd == -1) {
+         perror("Failed to open customers file");
+         send(sock, "Error: Could not open customer database.\n", 40, 0);
+         return;
+    }
+
+    if (flock(fd, LOCK_SH) == -1) { // SHARED lock
+        perror("Failed to lock customer file");
+        close(fd);
+        send(sock, "Error: Could not lock customer database.\n", 40, 0);
+        return;
+    }
+
+    _admin_load_customers_from_fd(fd, sock); // Call helper
+
+    flock(fd, LOCK_UN);
+    close(fd);
+
     if (customer_count == 0) {
         const char *no_cust_msg = "No customers in the database.\n";
         send(sock, no_cust_msg, strlen(no_cust_msg), 0);
         return;
     }
 
-    const char *header = "Customers:\n";
-    send(sock, header, strlen(header), 0);
-        for (int i = 0; i < customer_count; i++) {
-        snprintf(buffer, BUFFER_SIZE, "%s %s %.2f %d %d\n", customers[i].username, customers[i].password, 
+    // Build one large string
+    strcat(all_customers_buffer, "Customers:\n");
+    for (int i = 0; i < customer_count; i++) {
+        snprintf(buffer, BUFFER_SIZE, "%s %s %.2f %d %d\n", 
+                 customers[i].username, customers[i].password, 
                  customers[i].balance, customers[i].id, customers[i].is_active);
-        send(sock, buffer, strlen(buffer), 0);
+        
+        // Append to the large buffer, checking for overflow
+        if(strlen(all_customers_buffer) + strlen(buffer) < sizeof(all_customers_buffer)) {
+            strcat(all_customers_buffer, buffer);
+        } else {
+            // Buffer is full, stop appending
+            break;
+        }
     }
+    
+    // Send the entire buffer at once
+    send(sock, all_customers_buffer, strlen(all_customers_buffer), 0);
 }
+
 
 void remove_customer(int sock) {
     char message[BUFFER_SIZE];
@@ -547,8 +520,23 @@ void remove_customer(int sock) {
     recv(sock, message, BUFFER_SIZE, 0);
     sscanf(message, "%d", &id_to_remove);
 
-    load_customers(sock);
+    int fd = open(CUSTOMER_FILE, O_RDWR); // Open for Read-Write
+    if(fd == -1) {
+        perror("Failed to open customer file for remove");
+        send(sock, "Error: Database failure.\n", 25, 0);
+        return;
+    }
 
+    if (flock(fd, LOCK_EX) == -1) { // EXCLUSIVE lock
+        perror("Failed to lock customer file for remove");
+        close(fd);
+        send(sock, "Error: Database busy, try again.\n", 33, 0);
+        return;
+    }
+
+    _admin_load_customers_from_fd(fd, sock); // 1. READ
+
+    // 2. MODIFY
     for (int i = 0; i < customer_count; i++) {
         if (customers[i].id == id_to_remove) {
             found = 1;
@@ -556,12 +544,18 @@ void remove_customer(int sock) {
                 customers[j] = customers[j + 1];
             }
             customer_count--;
-            save_customers();
+            _admin_save_customers_to_fd(fd); // 3. WRITE
             const char *success_msg = "Customer removed successfully!";
             send(sock, success_msg, strlen(success_msg), 0);
+
+            flock(fd, LOCK_UN); // 4. UNLOCK
+            close(fd);          // 5. CLOSE
             return;
         }
     }
+
+    flock(fd, LOCK_UN); // 4. UNLOCK (if not found)
+    close(fd);          // 5. CLOSE (if not found)
 
     if (!found) {
         const char *error_msg = "Customer ID not found!";
@@ -594,7 +588,7 @@ void modify_customer_details(int sock) {
     }
 
     // 1. READ (using existing admin helper)
-    load_customers(sock); // This populates the global 'customers' array
+    _admin_load_customers_from_fd(fd, sock);// This populates the global 'customers' array
 
     // 2. MODIFY (in memory)
     for (int i = 0; i < customer_count; i++) {
@@ -608,7 +602,7 @@ void modify_customer_details(int sock) {
 
     // 3. WRITE (back to file using existing admin helper)
     if (found) {
-        save_customers(); // This saves the global 'customers' array
+        _admin_save_customers_to_fd(fd);// This saves the global 'customers' array
         const char *success_msg = "Customer update completed.\n";
         send(sock, success_msg, strlen(success_msg), 0);
     } else {

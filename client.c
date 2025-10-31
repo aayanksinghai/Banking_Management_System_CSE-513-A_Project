@@ -132,26 +132,36 @@ void show_customer_menu(int sock, const char* username) {
 
         switch (choice) {
             case 1:  // View Account Balance
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); 
                 memset(server_reply, 0, BUFFER_SIZE);
+                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0'; // Add the null-terminator
+                    printf("%s\n", server_reply); 
+                }
                 break;
-
             case 2: // Deposit Money
                 printf("Enter amount to deposit: ");
                 scanf("%f", &amount);
                 snprintf(message, sizeof(message), "%.2f", amount);
                 send(sock, message, strlen(message), 0);
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); 
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);
+                }
                 break;
             case 3: // Withdraw Money
                 printf("Enter amount to withdraw: ");
                 scanf("%f", &amount);
                 snprintf(message, sizeof(message), "%.2f", amount);
                 send(sock, message, strlen(message), 0);
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); 
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);
+                }
                 break;
             case 4:  // Transfer Funds
                 int target_account_number;
@@ -162,10 +172,13 @@ void show_customer_menu(int sock, const char* username) {
                 scanf("%f", &transfer_amount);
                 snprintf(message, sizeof(message), "%d %.2f", target_account_number, transfer_amount);
                 send(sock, message, strlen(message), 0);
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply);  // Display server response
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);
+                }
                 break;
-
             case 5:   // Apply for a Loan
                 float loan_amount, monthly_income;
                 char loan_purpose[50], employment_status[50];
@@ -196,9 +209,12 @@ void show_customer_menu(int sock, const char* username) {
                         contact_info);
                 send(sock, message, strlen(message), 0);
 
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); 
-
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);
+                }
                 break;
 
             case 6:   // Change Password
@@ -213,8 +229,12 @@ void show_customer_menu(int sock, const char* username) {
                     scanf("%s", new_password);
                     send(sock, new_password, strlen(new_password), 0);
 
-                    recv(sock, server_reply, BUFFER_SIZE, 0);
-                    printf("%s\n", server_reply);  // Confirmation message
+                    memset(server_reply, 0, BUFFER_SIZE);
+                    bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                    if (bytes_recvd > 0) {
+                        server_reply[bytes_recvd] = '\0';
+                        printf("%s\n", server_reply);
+                    }
                 }
                 break;
 
@@ -227,13 +247,21 @@ void show_customer_menu(int sock, const char* username) {
 
                 send(sock, feedback, strlen(feedback), 0);
 
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply);  // Confirmation message
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);
+                }
                 break;
 
             case 8:  // View Transaction History
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply);  // Display transaction history
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);
+                }
                 break;
 
             case 9:  // Logout
@@ -268,27 +296,37 @@ void show_admin_menu(int sock, const char* username){
 
         switch (choice) {
             case 1:  
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); // Display customers received from server
                 memset(server_reply, 0, BUFFER_SIZE);
+                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0'; // Add the null-terminator
+                    printf("%s\n", server_reply); 
+                }
                 break;
-
             case 2: 
                 printf("Enter new customer details (username password balance id): ");
                 scanf(" %[^\n]", message); 
                 send(sock, message, strlen(message), 0); 
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); 
-                memset(server_reply, 0, BUFFER_SIZE);
-                break;            
+                memset(server_reply, 0, BUFFER_SIZE); // 1. CLEAR
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0); // 2. RECV
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0'; // 3. ADD NULL-TERMINATOR
+                }
+                printf("%s\n", server_reply); // 4. PRINT
+
+                break;           
             case 3:
                 printf("Enter customer ID to remove: ");
                 scanf("%d", &id_to_remove);
                 snprintf(message, sizeof(message), "%d", id_to_remove);
                 send(sock, message, strlen(message), 0); 
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); 
-                memset(server_reply, 0, BUFFER_SIZE);
+                memset(server_reply, 0, BUFFER_SIZE); // 1. CLEAR
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0); // 2. RECV
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0'; // 3. ADD NULL-TERMINATOR
+                }
+                printf("%s\n", server_reply); // 4. PRINT
+
                 break;
             case 4:
                 show_manage_roles_menu(sock);
@@ -311,28 +349,45 @@ void show_admin_menu(int sock, const char* username){
                 snprintf(message, sizeof(message), "%s %s %s", old_username, new_username, new_password);
                 send(sock, message, strlen(message), 0);
 
-                memset(server_reply, 0, BUFFER_SIZE);
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply); // Confirmation message
+                memset(server_reply, 0, BUFFER_SIZE); // 1. CLEAR
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0); // 2. RECV
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0'; // 3. ADD NULL-TERMINATOR
+                }
+                printf("%s\n", server_reply); // 4. PRINT
+
                 break;
             case 6:
-                char old_password[50], new_passwrd[50];
-                printf("Enter old password: ");
+                char old_password[50], new_pass[50];
+                // int bytes_recvd;
+
+                // --- Step 1: Receive "Enter old password: " ---
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                server_reply[bytes_recvd] = '\0';
+                printf("%s", server_reply); // Print the server's prompt
+
+                // --- Step 2: Now, get input and send old password ---
                 scanf("%s", old_password);
                 send(sock, old_password, strlen(old_password), 0);
-                
-                memset(server_reply, 0, BUFFER_SIZE);
-                recv(sock, server_reply, BUFFER_SIZE, 0);
-                printf("%s\n", server_reply);  // Password match or mismatch
-                
-                if (strstr(server_reply, "Password match")) {
-                    printf("Enter new password: ");
-                    scanf("%s", new_passwrd);
-                    send(sock, new_passwrd, strlen(new_passwrd), 0);
 
+                // --- Step 3: Receive "Password match!" or "Error" ---
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                server_reply[bytes_recvd] = '\0';
+                printf("%s\n", server_reply); // This will print "Password match!..." or "Old password..."
+
+                // --- Step 4: Check response and send New Password ---
+                if (strstr(server_reply, "Password match")) {
+                    // The server's reply already prompted for the new password
+                    scanf("%s", new_pass);
+                    send(sock, new_pass, strlen(new_pass), 0);
+
+                    // --- Step 5: Receive final "Success" message ---
                     memset(server_reply, 0, BUFFER_SIZE);
-                    recv(sock, server_reply, BUFFER_SIZE, 0);
-                    printf("%s\n", server_reply);  // Confirmation message
+                    bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply);  // This will print "Password changed successfully!"
                 }
                 break;
             case 7:

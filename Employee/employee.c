@@ -208,8 +208,9 @@ int authenticate_employee(const char* username, const char* password) {
                 line[line_pos + len] = '\0';
 
                 // Process the line
-                sscanf(line, "%s %s %d", emp.username, emp.password, &emp.id);
-                if (strcmp(emp.username, username) == 0 && strcmp(emp.password, password) == 0) {
+                Employee auth_emp;
+                sscanf(line, "%s %s %d", auth_emp.username, auth_emp.password, &auth_emp.id);
+                if (strcmp(auth_emp.username, username) == 0 && strcmp(auth_emp.password, password) == 0) {
                     found = 1;
                     break;
                 }

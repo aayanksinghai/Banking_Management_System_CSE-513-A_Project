@@ -6,8 +6,10 @@
 #include "../Manager/manager.h"
 
 void handle_admin_login(int sock);
-void load_customers(int sock);
-void save_customers();
+// void load_customers(int sock);
+// void save_customers();
+int _admin_load_customers_from_fd(int fd, int sock);
+int _admin_save_customers_to_fd(int fd);
 void save_new_customer(Customer new_customer);
 void save_new_employee(Employee new_employee);
 void add_customer(int sock);

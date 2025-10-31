@@ -292,7 +292,7 @@ void deposit_money(const char *username, int sock) {
         return;
     }
 
-    if (flock(fd, LOCK_SH) == -1) {
+    if (flock(fd, LOCK_EX) == -1) {
         perror("Failed to lock customer file for deposit");
         close(fd);
         send(sock, "Error: Bank is busy, try again.\n", 33, 0);
@@ -355,7 +355,7 @@ void withdraw_money(const char *username, int sock) {
         send(sock, "Error: Database connection failed.\n", 33, 0);
         return;
     }
-    if (flock(fd, LOCK_SH) == -1) {
+    if (flock(fd, LOCK_EX) == -1) {
         perror("Failed to lock customer file for withdrawal");
         close(fd);
         send(sock, "Error: Bank is busy, try again.\n", 33, 0);
@@ -421,7 +421,7 @@ void transfer_funds(const char *username, int sock) {
         return;
     }
 
-    if (flock(fd, LOCK_SH) == -1) {
+    if (flock(fd, LOCK_EX) == -1) {
         perror("Failed to lock customer file for transfer");
         close(fd);
         send(sock, "Error: Bank is busy, try again.\n", 33, 0);
