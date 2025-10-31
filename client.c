@@ -560,8 +560,13 @@ void show_manager_menu(int sock, const char* username){
                 fgets(message, BUFFER_SIZE, stdin);
                 message[strcspn(message, "\n")] = 0;  // Remove newline character
                 send(sock, message, strlen(message), 0);  
-                recv(sock, server_reply, BUFFER_SIZE, 0);  
+                memset(server_reply, 0, BUFFER_SIZE); // 1. Clear buffer
+                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0); // 2. Get bytes
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0'; // 3. Null-terminate
+                }
                 printf("%s\n", server_reply);
+                // -------------------
                 break;
             case 2:
                 printf("Enter the username to deactivate: ");
@@ -569,8 +574,13 @@ void show_manager_menu(int sock, const char* username){
                 fgets(message, BUFFER_SIZE, stdin);
                 message[strcspn(message, "\n")] = 0;  // Remove newline character
                 send(sock, message, strlen(message), 0);  
-                recv(sock, server_reply, BUFFER_SIZE, 0);  
+                memset(server_reply, 0, BUFFER_SIZE); // 1. Clear buffer
+                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0); // 2. Get bytes
+                if (bytes_recvd > 0) {
+                    server_reply[bytes_recvd] = '\0'; // 3. Null-terminate
+                }
                 printf("%s\n", server_reply);
+                // -------------------
                 break;
             case 3:
                 while ((bytes_received = recv(sock, server_reply, BUFFER_SIZE - 1, 0)) > 0) {
