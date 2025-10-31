@@ -11,6 +11,7 @@
 #include "../loan.h"
 #include "../Employee/employee.h"
 #include "../Customer/customer.h"
+#include "../session.h"
 
 #define BUFFER_SIZE 1024
 #define MAX_CUSTOMERS 100
@@ -257,7 +258,19 @@ void handle_manager_login(int sock) {
     recv(sock, password, sizeof(password), 0);
     password[strcspn(password, "\n")] = 0;
 
-    if (authenticate_manager(username, password)) {
+    int manager_id = authenticate_manager(username, password);
+    if (manager_id > 0) { // Check for a valid ID
+
+        // --- 1. SESSION CHECK ---
+        if (isUserLoggedIn(manager_id, ROLE_MANAGER)) {
+            const char *error_msg = "Login failed! This user is already logged in.";
+            send(sock, error_msg, strlen(error_msg), 0);
+            close(sock);
+            return;
+        }
+        logUserIn(manager_id, ROLE_MANAGER); // <-- 2. LOG IN
+        // --- END SESSION CHECK ---
+
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
 
@@ -267,6 +280,7 @@ void handle_manager_login(int sock) {
             int bytes_recvd = recv(sock, choice, sizeof(choice), 0);
             if (bytes_recvd <= 0) {
                 printf("Manager client disconnected.\n");
+                logUserOut(manager_id, ROLE_MANAGER); // <-- 3. LOG OUT
                 break; // Client disconnected
             }
 
@@ -289,6 +303,7 @@ void handle_manager_login(int sock) {
                     break;
                 case 6:
                     printf("Manager logging out...\n");
+                    logUserOut(manager_id, ROLE_MANAGER); // <-- 3. LOG OUT
                     close(sock);
                     return; // Exit thread
                 default:

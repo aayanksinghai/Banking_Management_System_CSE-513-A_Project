@@ -12,6 +12,8 @@
 #include <errno.h>
 #include "customer.h"
 #include "../loan.h"
+#include "../Employee/employee.h"
+#include "../session.h"
 
 
 #define BUFFER_SIZE 1024
@@ -23,16 +25,6 @@
 Customer customers[100];
 int customer_count = 0;
 Customer new_customer;
-
-// typedef struct {
-//     int loan_id;
-//     char username[50];
-//     float loan_amount;
-//     char loan_purpose[50];
-//     float monthly_income;
-//     char employment_status[50];
-//     char contact_info[20];
-// } Loan;
 
 // Function prototypes
 void view_account_balance(const char *username, int sock);
@@ -143,6 +135,17 @@ void handle_customer_login(int sock) {
 
     int customer_id = authenticate_customer(username, password);
     if (customer_id > 0){
+
+        // --- 1. SESSION CHECK ---
+        if (isUserLoggedIn(customer_id, ROLE_CUSTOMER)) {
+            const char *error_msg = "Login failed! This user is already logged in.";
+            send(sock, error_msg, strlen(error_msg), 0);
+            close(sock);
+            return;
+        }
+        logUserIn(customer_id, ROLE_CUSTOMER); // <-- 2. LOG IN
+        // --- END SESSION CHECK ---
+
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
 
@@ -153,6 +156,7 @@ void handle_customer_login(int sock) {
             int bytes_recvd = recv(sock, choice, sizeof(choice), 0);
             if(bytes_recvd <= 0) {
                  printf("Customer client disconnected.\n");
+                 logUserOut(customer_id, ROLE_CUSTOMER); // <-- 3. LOG OUT
                  break; // Client disconnected
             }
 
@@ -185,6 +189,7 @@ void handle_customer_login(int sock) {
                     break;
                 case 9: // Logout
                     printf("Customer logging out...\n");
+                    logUserOut(customer_id, ROLE_CUSTOMER);
                     close(sock);
                     return; // Exit thread                    
                 default:

@@ -8,6 +8,7 @@
 #include "Admin/admin.h" 
 #include "Employee/employee.h" 
 #include "Manager/manager.h"
+#include "session.h"
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
@@ -58,6 +59,7 @@ int main() {
         perror("Bind failed");
         return 1;
     }
+    initSessionLock();
     listen(server_socket, 3);
     printf("Waiting for incoming connections...\n");
 

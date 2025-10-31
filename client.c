@@ -359,36 +359,31 @@ void show_admin_menu(int sock, const char* username){
                 break;
             case 6:
                 char old_password[50], new_pass[50];
-                // int bytes_recvd;
 
-                // --- Step 1: Receive "Enter old password: " ---
-                memset(server_reply, 0, BUFFER_SIZE);
-                bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
-                server_reply[bytes_recvd] = '\0';
-                printf("%s", server_reply); // Print the server's prompt
-
-                // --- Step 2: Now, get input and send old password ---
+                // --- Step 1: Send Old Password ---
+                printf("Enter old password: ");
                 scanf("%s", old_password);
                 send(sock, old_password, strlen(old_password), 0);
 
-                // --- Step 3: Receive "Password match!" or "Error" ---
+                // --- Step 2: Receive "Password match" or "Error" ---
                 memset(server_reply, 0, BUFFER_SIZE);
                 bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
                 server_reply[bytes_recvd] = '\0';
-                printf("%s\n", server_reply); // This will print "Password match!..." or "Old password..."
+                printf("%s\n", server_reply);  // This will print "Password match!" or "Old password did not match."
 
-                // --- Step 4: Check response and send New Password ---
+                // --- Step 3: Check response and Send New Password ---
                 if (strstr(server_reply, "Password match")) {
-                    // The server's reply already prompted for the new password
+                    printf("Enter new password: ");
                     scanf("%s", new_pass);
                     send(sock, new_pass, strlen(new_pass), 0);
 
-                    // --- Step 5: Receive final "Success" message ---
+                    // --- Step 4: Receive final "Success" message ---
                     memset(server_reply, 0, BUFFER_SIZE);
                     bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
                     server_reply[bytes_recvd] = '\0';
                     printf("%s\n", server_reply);  // This will print "Password changed successfully!"
                 }
+                // If the password didn't match, we just do nothing and loop back to the menu.
                 break;
             case 7:
                 printf("Logging Out...\n");
@@ -427,36 +422,38 @@ void show_employee_menu(int sock, const char* username){
                 memset(server_reply, 0, BUFFER_SIZE);
                 break;
             case 2:
-            // This single loop will handle all messages for this operation
-            while (1) {
-                memset(server_reply, 0, BUFFER_SIZE);
-                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
-                if (bytes_recvd <= 0) {
-                    break; // Server disconnected
-                }
-                server_reply[bytes_recvd] = '\0';
-                printf("%s\n", server_reply); // Print whatever we got
+                // This loop will now handle all messages for this operation
+                while (1) {
+                    memset(server_reply, 0, BUFFER_SIZE);
+                    int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                    if (bytes_recvd <= 0) {
+                        break; // Server disconnected
+                    }
+                    server_reply[bytes_recvd] = '\0';
+                    printf("%s\n", server_reply); // Print whatever we got
 
-                // Check for "terminal" (ending) messages from the server
-                if (strstr(server_reply, "completed") != NULL || 
-                    strstr(server_reply, "No loans to process") != NULL) 
-                {
-                    break; // This operation is over, exit the while loop
-                }
+                    // Check for "terminal" (ending) messages from the server
+                    if (strstr(server_reply, "completed") != NULL || 
+                        strstr(server_reply, "No loans to process") != NULL ||
+                        strstr(server_reply, "No loans assigned"))
+                    {
+                        break; // This operation is over, exit the while loop
+                    }
 
-                // ONLY prompt if the message contains loan details
-                if (strstr(server_reply, "--- Loan ID:")) {
-                    // This message *is* the loan data. Ask for a response.
-                    int choice;
-                    printf("Approve (1) or Reject (0): ");
-                    scanf("%d", &choice);
-                    sprintf(message, "%d", choice);
-                    send(sock, message, strlen(message), 0);
+                    // --- NEW LOGIC ---
+                    // ONLY prompt if the message contains loan details
+                    if (strstr(server_reply, "--- Loan ID:")) {
+                        // This message *is* the loan data. Ask for a response.
+                        int choice;
+                        printf("Approve (1) or Reject (0): ");
+                        scanf("%d", &choice);
+                        sprintf(message, "%d", choice);
+                        send(sock, message, strlen(message), 0);
+                    }
+                    // If it was just the "Processing..." header, the loop
+                    // will just repeat and wait for the next message.
                 }
-                // If it was just the "Processing..." header, the loop
-                // will just repeat and wait for the next message (the loan).
-            }
-            break;
+                break;
 
             case 3:
                 printf("Enter new customer details (username password balance): ");

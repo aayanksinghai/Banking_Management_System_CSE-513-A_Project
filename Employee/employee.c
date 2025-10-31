@@ -10,6 +10,7 @@
 #include "employee.h"
 #include "../Admin/admin.h"
 #include "../Customer/customer.h"
+#include "../session.h"
 
 #define BUFFER_SIZE 1024
 #define MAX_EMPLOYEES 100
@@ -393,7 +394,18 @@ void handle_employee_login(int sock) {
     password[strcspn(password, "\n")] = 0;
 
     int employee_id = authenticate_employee(username, password);
-    if (employee_id > 0) { // Check for a valid ID
+    if (employee_id > 0) {
+
+        // --- 1. SESSION CHECK ---
+        if (isUserLoggedIn(employee_id, ROLE_EMPLOYEE)) {
+            const char *error_msg = "Login failed! This user is already logged in.";
+            send(sock, error_msg, strlen(error_msg), 0);
+            close(sock);
+            return;
+        }
+        logUserIn(employee_id, ROLE_EMPLOYEE); // <-- 2. LOG IN
+        // --- END SESSION CHECK ---
+
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
 
@@ -405,6 +417,7 @@ void handle_employee_login(int sock) {
             int bytes_recvd = recv(sock, choice_str, sizeof(choice_str), 0);
             if(bytes_recvd <= 0) {
                  printf("Employee client disconnected.\n");
+                 logUserOut(employee_id, ROLE_EMPLOYEE); // <-- 3. LOG OUT
                  break; // Client disconnected
             }
 
@@ -436,6 +449,7 @@ void handle_employee_login(int sock) {
                     break;
                 case 9:
                     printf("Employee logging out...\n");
+                    logUserOut(employee_id, ROLE_EMPLOYEE); // <-- 3. LOG OUT
                     close(sock);
                     return; // Exit thread
                 default:

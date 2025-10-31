@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include "admin.h"
+#include "../session.h"
 #include "../Employee/employee.h"
 #include "../Customer/customer.h"
 #include "../Manager/manager.h"
@@ -837,13 +838,30 @@ void handle_admin_login(int sock) {
     recv(sock, password, sizeof(password), 0);
     password[strcspn(password, "\n")] = 0;
 
-    if (authenticate_admin(username, password)) {
+    int admin_id = authenticate_admin(username, password);
+    if (admin_id > 0) { // Check for a valid ID
+
+        // --- 1. SESSION CHECK ---
+        if (isUserLoggedIn(admin_id, ROLE_ADMIN)) {
+            const char *error_msg = "Login failed! This user is already logged in.";
+            send(sock, error_msg, strlen(error_msg), 0);
+            close(sock);
+            return;
+        }
+        logUserIn(admin_id, ROLE_ADMIN); // <-- 2. LOG IN
+        // --- END SESSION CHECK ---
+
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
 
         while (1) {
             char choice[2];
-            recv(sock, choice, sizeof(choice), 0);
+            int bytes_recvd = recv(sock, choice, sizeof(choice), 0);
+            if (bytes_recvd <= 0) {
+                printf("Admin client disconnected.\n");
+                logUserOut(admin_id, ROLE_ADMIN); // <-- 3. LOG OUT
+                break;
+            }
             int menu_choice = atoi(choice);
 
             switch (menu_choice) {
@@ -867,6 +885,7 @@ void handle_admin_login(int sock) {
                     break;
                 case 7:
                     printf("Logging out...");
+                    logUserOut(admin_id, ROLE_ADMIN);
                     close(sock);
                     return;
                 default:
