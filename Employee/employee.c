@@ -233,35 +233,27 @@ int authenticate_employee(const char* username, const char* password) {
 }
 
 void view_customer_transactions(int sock) {
-    char username[50];
-    char buffer[BUFFER_SIZE * 4]; // Large buffer for reading
+    char id_buffer[50];
+    char buffer[BUFFER_SIZE * 4]; 
     char line[BUFFER_SIZE];
     int line_pos = 0;
     ssize_t bytes_read;
-    char history[BUFFER_SIZE * 10] = ""; // Large buffer for sending
+    char history[BUFFER_SIZE * 10] = ""; 
     int history_len = 0;
     int found = 0;
 
-    // 1. Get username from client
-    int bytes = recv(sock, username, sizeof(username) - 1, 0);
-    username[bytes] = '\0';
-    username[strcspn(username, "\n")] = 0;
+    // 1. Get customer ID string from client
+    int bytes = recv(sock, id_buffer, sizeof(id_buffer) - 1, 0);
+    id_buffer[bytes] = '\0';
+    id_buffer[strcspn(id_buffer, "\n")] = 0;
+    int search_id = atoi(id_buffer); // Convert to int
 
     // 2. Open transaction file
     int fd = open(TRANSACTION_FILE, O_RDONLY | O_CREAT, 0644);
-    if (fd == -1) {
-        perror("Failed to open transaction history file");
-        send(sock, "Error: Could not retrieve history.\n", 35, 0);
-        return;
-    }
+    if (fd == -1) { /* error handling */ return; }
 
     // 3. Get shared lock for reading
-    if (flock(fd, LOCK_SH) == -1) {
-        perror("Failed to lock transaction file");
-        close(fd);
-        send(sock, "Error: Server busy, try again.\n", 30, 0);
-        return;
-    }
+    if (flock(fd, LOCK_SH) == -1) { /* error handling */ return; }
 
     // 4. Read and parse file
     while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
@@ -274,18 +266,21 @@ void view_customer_transactions(int sock) {
                 int len = newline - ptr;
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
-                
-                // Check if line contains the *requested* username
-                if (strstr(line, username) != NULL) {
-                    found = 1;
-                    // Append to history buffer if it fits
-                    if (history_len + len + 1 < sizeof(history)) {
-                        strcat(history, line);
-                        strcat(history, "\n");
-                        history_len += len + 1;
+
+                // --- NEW SEARCH LOGIC ---
+                int line_id;
+                if (sscanf(line, "%d |", &line_id) == 1) {
+                    if (line_id == search_id) {
+                        found = 1;
+                        if (history_len + len + 1 < sizeof(history)) {
+                            strcat(history, line);
+                            strcat(history, "\n");
+                            history_len += len + 1;
+                        }
                     }
                 }
-                
+                // --- END OF NEW LOGIC ---
+
                 line[0] = '\0';
                 line_pos = 0;
                 ptr = newline + 1;
@@ -303,7 +298,7 @@ void view_customer_transactions(int sock) {
 
     // 6. Send result
     if (!found) {
-        send(sock, "No transaction history found for that user.\n", 44, 0);
+        send(sock, "No transaction history found for that user ID.\n", 47, 0);
     } else {
         send(sock, history, strlen(history), 0);
     }

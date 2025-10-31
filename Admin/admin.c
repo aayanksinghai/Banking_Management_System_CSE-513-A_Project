@@ -430,7 +430,7 @@ void add_customer(int sock) {
     
     // Set new ID. Start at 100 if no customers, else increment.
     new_customer.id = (max_id == 0) ? 100 : max_id + 1;
-    // new_customer.is_active = 1;
+    new_customer.is_active = 1;
 
     // --- 6. No conflicts, add to array ---
     customers[customer_count++] = new_customer;
@@ -483,10 +483,9 @@ void view_all_customer(int sock) {
     // Build one large string
     strcat(all_customers_buffer, "Customers:\n");
     for (int i = 0; i < customer_count; i++) {
-        snprintf(buffer, BUFFER_SIZE, "%s %s %.2f %d\n", 
+        snprintf(buffer, BUFFER_SIZE, "%s %s %.2f %d %d\n", 
                  customers[i].username, customers[i].password, 
-                 customers[i].balance, customers[i].id);
-                 //, customers[i].is_active)
+                 customers[i].balance, customers[i].id, customers[i].is_active);
         
         // Append to the large buffer, checking for overflow
         if(strlen(all_customers_buffer) + strlen(buffer) < sizeof(all_customers_buffer)) {

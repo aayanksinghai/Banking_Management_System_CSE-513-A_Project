@@ -481,13 +481,13 @@ void show_employee_menu(int sock, const char* username){
                 }
                 break; 
             case 6:
-                char search_username[50];
-                printf("Enter customer username to view transactions: ");
-                scanf("%s", search_username);
-                send(sock, search_username, strlen(search_username), 0);
+                char search_id[50];
+                printf("Enter customer ID to view transactions: ");
+                scanf("%s", search_id);
+                send(sock, search_id, strlen(search_id), 0);
 
                 memset(server_reply, 0, BUFFER_SIZE);
-                int bytes_recv = recv(sock, server_reply, BUFFER_SIZE, 0);
+                int bytes_recv = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
                 if(bytes_recv > 0) {
                     server_reply[bytes_recv] = '\0';
                     printf("%s\n", server_reply);

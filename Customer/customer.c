@@ -34,18 +34,18 @@ typedef struct {
 
 // Function prototypes
 void view_account_balance(const char *username, int sock);
-void deposit_money(const char *username, int sock);
-void withdraw_money(const char *username, int sock);
-void transfer_funds(const char *username, int sock);
+void deposit_money(const char *username, int customer_id, int sock);
+void withdraw_money(const char *username, int customer_id, int sock);
+void transfer_funds(const char *username, int customer_id, int sock);
 int _load_customers_from_fd(int fd);
 int _save_customers_to_fd(int fd);
 void handle_customer_login(int sock);
 int authenticate_customer(const char *username, const char *password);
 void apply_for_loan(const char *username, int sock); 
 void change_password(const char *username, int sock); 
-void add_feedback(const char *username, int sock); 
-void view_transaction_history(const char *username, int sock); 
-void log_transaction(const char *username, const char *type, float amount);
+void add_feedback(int customer_id, int sock); 
+void view_transaction_history(int customer_id, int sock); 
+void log_transaction(int customer_id, const char *username, const char *type, float amount);
 
 
 // Helper to load all customers from an already-opened file descriptor
@@ -58,7 +58,7 @@ int _load_customers_from_fd(int fd) {
     }
 
     char buffer[BUFFER_SIZE * 4]; // Large buffer for reading
-    char line[BUFFER_SIZE];
+    char line[BUFFER_SIZE]={0};
     int line_pos = 0;
     ssize_t bytes_read;
     customer_count = 0; // Reset global count
@@ -139,8 +139,8 @@ void handle_customer_login(int sock) {
     recv(sock, password, sizeof(password), 0);
     password[strcspn(password, "\n")] = 0;  
 
-    int auth_result = authenticate_customer(username, password);
-    if (auth_result == 1){
+    int customer_id = authenticate_customer(username, password);
+    if (customer_id > 0){
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
 
@@ -161,13 +161,13 @@ void handle_customer_login(int sock) {
                     view_account_balance(username, sock);
                     break;
                 case 2:
-                    deposit_money(username, sock);
+                    deposit_money(username, customer_id, sock);
                     break;
                 case 3:
-                    withdraw_money(username, sock);
+                    withdraw_money(username, customer_id, sock);
                     break;
                 case 4:
-                    transfer_funds(username, sock);
+                    transfer_funds(username, customer_id, sock);
                     break;
                 case 5:
                     apply_for_loan(username, sock); 
@@ -176,10 +176,10 @@ void handle_customer_login(int sock) {
                     change_password(username, sock);
                     break;
                 case 7:
-                    add_feedback(username, sock);
+                    add_feedback(customer_id, sock);
                     break;
                 case 8:
-                    view_transaction_history(username, sock);
+                    view_transaction_history(customer_id, sock);
                     break;
                 case 9: // Logout
                     printf("Customer logging out...\n");
@@ -191,7 +191,7 @@ void handle_customer_login(int sock) {
             }
         }
     } 
-    else if (auth_result == -1) {
+    else if (customer_id == -1) {
         const char *inactive_msg = "Login failed! Your account is deactivated.";
         send(sock, inactive_msg, strlen(inactive_msg), 0);
     }
@@ -204,11 +204,10 @@ void handle_customer_login(int sock) {
 }
 
 int authenticate_customer(const char *username, const char *password) {
-    // FILE *file = fopen(CUSTOMER_FILE, "r");
     int fd = open(CUSTOMER_FILE, O_RDONLY | O_CREAT, 0644);
     if (fd == -1) {
         perror("Failed to open customer file");
-        return 0;
+        return 0; // 0 = fail
     }
 
     if (flock(fd, LOCK_SH) == -1) {
@@ -217,25 +216,22 @@ int authenticate_customer(const char *username, const char *password) {
         return 0;
     }
 
-
-    // Use helper to load customers into global array
-    _load_customers_from_fd(fd);
+    _load_customers_from_fd(fd); // Use helper
 
     flock(fd, LOCK_UN);
     close(fd);
-
 
     // Now, check the array
     for (int i = 0; i < customer_count; i++) {
         if (strcmp(customers[i].username, username) == 0 && strcmp(customers[i].password, password) == 0) {
             if (customers[i].is_active == 1) {
-                return 1;  // Login successful
+                return customers[i].id;  // --- RETURN ID INSTEAD OF 1 ---
             } else {
                 return -1; // Account is deactivated
             }
         }
     }
-    
+
     return 0; // Not found
 }
 
@@ -272,7 +268,7 @@ void view_account_balance(const char *username, int sock) {
     send(sock, "Error: Account not found.\n", 26, 0);
 }
 
-void deposit_money(const char *username, int sock) {
+void deposit_money(const char *username, int customer_id, int sock) {
     float amount;
     char msg[100];
 
@@ -317,8 +313,8 @@ void deposit_money(const char *username, int sock) {
     // 3. WRITE (only if modification was successful)
     if (found) {
         if (_save_customers_to_fd(fd) == 0) {
-             // Log only on successful save
-            log_transaction(username, "Deposit", amount);
+            // Log only on successful save
+            log_transaction(customer_id, username, "Deposit", amount); // <-- USE PASSED-IN ID
         } else {
             // This is bad, the file might be corrupt.
             // A real system would roll back.
@@ -335,7 +331,7 @@ void deposit_money(const char *username, int sock) {
 
 }
 
-void withdraw_money(const char *username, int sock) {
+void withdraw_money(const char *username, int customer_id, int sock) {
     float amount;
     char msg[100];
 
@@ -386,7 +382,7 @@ void withdraw_money(const char *username, int sock) {
     // 3. WRITE (only if modification was successful)
     if (found && success) {
         if (_save_customers_to_fd(fd) == 0) {
-            log_transaction(username, "Withdrawal", amount);
+            log_transaction(customer_id, username, "Withdrawal", amount); // <-- USE PASSED-IN ID
         } else {
             perror("CRITICAL: Failed to save customers after withdrawal");
         }
@@ -399,7 +395,7 @@ void withdraw_money(const char *username, int sock) {
 }
 
 // Function to transfer funds
-void transfer_funds(const char *username, int sock) {
+void transfer_funds(const char *username, int customer_id, int sock) {
     char msg[100];
     int target_account_number;
     float transfer_amount;
@@ -462,7 +458,12 @@ void transfer_funds(const char *username, int sock) {
     // 3. WRITE
     if (success) {
         if (_save_customers_to_fd(fd) == 0) {
-            log_transaction(username, "Transfer", transfer_amount);
+            // Log for the SENDER (Debit)
+            log_transaction(customer_id, username, "Transfer (Debit)", transfer_amount);
+
+            // Log for the RECEIVER (Credit)
+            log_transaction(target_user->id, target_user->username, "Transfer (Credit)", transfer_amount);
+
         } else {
             perror("CRITICAL: Failed to save customers after transfer");
         }
@@ -584,7 +585,7 @@ void change_password(const char *username, int sock) {
     close(fd);
 }
 
-void add_feedback(const char *username, int sock){
+void add_feedback(int customer_id, int sock){
     char feedback[500];
 
     recv(sock, feedback, sizeof(feedback), 0);
@@ -605,7 +606,8 @@ void add_feedback(const char *username, int sock){
     }
 
     char buffer[BUFFER_SIZE];
-    snprintf(buffer, sizeof(buffer), "Feedback from %s: %s\n", username, feedback);
+    // --- THIS IS THE NEW FORMAT ---
+    snprintf(buffer, sizeof(buffer), "%d : %s\n", customer_id, feedback);
 
     if (write(fd, buffer, strlen(buffer)) == -1) {
         perror("Failed to write feedback");
@@ -617,27 +619,30 @@ void add_feedback(const char *username, int sock){
     send(sock, "Thank you for your feedback!\n", 29, 0);
 }
 
-void view_transaction_history(const char *username, int sock) {
+void view_transaction_history(int customer_id, int sock) {
     int fd = open(TRANSACTION_FILE, O_RDONLY | O_CREAT, 0644);
-    if (fd == -1) {
-        perror("Failed to open transaction history file");
-        send(sock, "Error: Could not retrieve history.\n", 35, 0);
-        return;
+    if (fd == -1) { 
+        perror("Failed to open transaction history");
+        send(sock, "Error: Could not open history.\n", 31, 0);
+        return; 
     }
-
-    if (flock(fd, LOCK_SH) == -1) {
-        perror("Failed to lock transaction file");
+    if (flock(fd, LOCK_SH) == -1) { 
+        perror("Failed to lock transaction history");
         close(fd);
-        send(sock, "Error: Server busy, try again.\n", 30, 0);
-        return;
+        send(sock, "Error: Database busy, try again.\n", 33, 0);
+        return; 
     }
 
-    char buffer[BUFFER_SIZE * 4]; // Large buffer
-    char line[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE * 4]; 
+    char line[BUFFER_SIZE] = {0}; // <--- FIX 1: INITIALIZE LINE TO ALL ZEROS
     int line_pos = 0;
     ssize_t bytes_read;
-    char history[BUFFER_SIZE * 10] = ""; // Buffer to build a large history string
+    char history[BUFFER_SIZE * 10] = ""; 
     int history_len = 0;
+    
+    // --- FIX 2: ADD A HEADER TO THE MESSAGE ---
+    strcat(history, "--- Transaction History ---\n");
+    history_len = strlen(history);
       
     while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytes_read] = '\0';
@@ -650,17 +655,19 @@ void view_transaction_history(const char *username, int sock) {
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
                 
-                // Process the line
-                if (strstr(line, username) != NULL) {
-                    // Append to history buffer if it fits
-                    if (history_len + len + 1 < sizeof(history)) {
-                        strcat(history, line);
-                        strcat(history, "\n");
-                        history_len += len + 1;
+                int line_id;
+                if (sscanf(line, "%d", &line_id) == 1) {
+                    if (line_id == customer_id) {
+                        // Check if it fits
+                        if (history_len + len + 2 < sizeof(history)) {
+                            strcat(history, line);
+                            strcat(history, "\n"); // Add the newline back
+                            history_len += (len + 1);
+                        }
                     }
                 }
                 
-                line[0] = '\0';
+                line[0] = '\0'; // Reset line buffer
                 line_pos = 0;
                 ptr = newline + 1;
             } else {
@@ -674,22 +681,21 @@ void view_transaction_history(const char *username, int sock) {
     flock(fd, LOCK_UN);
     close(fd);
 
-    if (history_len == 0) {
+    // --- FIX 3: CHECK IF ONLY THE HEADER IS PRESENT ---
+    if (history_len == strlen("--- Transaction History ---\n")) { 
         send(sock, "No transaction history found.\n", strlen("No transaction history found.\n"), 0);
     } else {
+        strcat(history, "--- End of History ---\n"); // Add a footer
         send(sock, history, strlen(history), 0);
     }
 }
-
-void log_transaction(const char *username, const char *type, float amount) {
-    // FILE *file = fopen("Customer/transaction_history.txt", "a");  
+void log_transaction(int customer_id, const char *username, const char *type, float amount) {
     int fd = open(TRANSACTION_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
     if (fd == -1) {
         perror("Failed to open transaction history file");
         return;
     }
 
-    // Get an exclusive lock to prevent garbled writes
     if (flock(fd, LOCK_EX) == -1) {
         perror("Failed to lock transaction file");
         close(fd);
@@ -700,8 +706,10 @@ void log_transaction(const char *username, const char *type, float amount) {
     char *timestamp = ctime(&now);
     timestamp[strcspn(timestamp, "\n")] = 0;  
     char buffer[BUFFER_SIZE];
-    snprintf(buffer, sizeof(buffer), "%s | %s | %.2f | %s\n", 
-             username, type, amount, timestamp);
+
+    // --- THIS IS THE NEW FORMAT ---
+    snprintf(buffer, sizeof(buffer), "%d | %s | %s | %.2f | %s\n", 
+             customer_id, username, type, amount, timestamp);
 
     if (write(fd, buffer, strlen(buffer)) == -1) {
         perror("Failed to write to transaction history");
