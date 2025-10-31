@@ -642,7 +642,7 @@ void show_manage_roles_menu(int sock) {
 
         switch (choice) {
             case 1: // Add Employee
-                printf("Enter new Employee details (username password empid):");
+                printf("Enter new Employee details (username password):");
                 scanf(" %[^\n]", message); 
                 message[strcspn(message, "\n")] = 0;
                 send(sock, message, strlen(message), 0); 

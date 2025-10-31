@@ -100,19 +100,72 @@ int _admin_save_employees_to_fd(int fd) {
     return 0; // Success
 }
 
-void add_BankEmp(int sock){
+void add_BankEmp(int sock) {
     char message[BUFFER_SIZE];
-    recv(sock, message, BUFFER_SIZE, 0);
-    sscanf(message, "%s %s %d", new_employee.username, new_employee.password, &new_employee.id);
-    if (is_employee_exists(new_employee.username, new_employee.password)) {
-        const char *error_msg = "Employee already exists!";
-        send(sock, error_msg, strlen(error_msg), 0);
+    char success_msg[BUFFER_SIZE]; // For sending the new ID back
+    Employee new_employee; // Use a local struct
+
+    // 1. Receive the shorter string (no ID)
+    memset(message, 0, BUFFER_SIZE);
+    recv(sock, message, BUFFER_SIZE - 1, 0);
+    sscanf(message, "%s %s", new_employee.username, new_employee.password);
+
+    // --- 2. Open and Lock File ---
+    int fd = open(EMPLOYEE_FILE, O_RDWR | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("Failed to open employee file for add");
+        send(sock, "Error: Database failure.\n", 25, 0);
         return;
     }
+    if (flock(fd, LOCK_EX) == -1) { // Get EXCLUSIVE lock
+        perror("Failed to lock employee file for add");
+        close(fd);
+        send(sock, "Error: Database busy, try again.\n", 33, 0);
+        return;
+    }
+
+    // --- 3. Load all employees ---
+    _admin_load_employees_from_fd(fd); // This populates the global 'employees' array
+
+    // --- 4. Check for username conflicts ---
+    for (int i = 0; i < emp_count; i++) {
+        if (strcmp(employees[i].username, new_employee.username) == 0) {
+            const char *error_msg = "Error: Employee with this username already exists!";
+            send(sock, error_msg, strlen(error_msg), 0);
+            flock(fd, LOCK_UN);
+            close(fd);
+            return;
+        }
+    }
+
+    // --- 5. Find the highest existing ID ---
+    int max_id = 0;
+    for (int i = 0; i < emp_count; i++) {
+        if (employees[i].id > max_id) {
+            max_id = employees[i].id;
+        }
+    }
+    
+    // Set new ID. Start at 500 if no employees, else increment.
+    // (Using 500 to distinguish from Customer IDs)
+    new_employee.id = (max_id == 0) ? 500 : max_id + 1;
+
+    // --- 6. No conflicts, add to array ---
     employees[emp_count++] = new_employee;
-    save_new_employee(new_employee);
-    const char *success_msg = "Employee added successfully!";
-    send(sock, success_msg, strlen(success_msg), 0);
+    
+    // --- 7. Save array back to file ---
+    if (_admin_save_employees_to_fd(fd) == 0) {
+        // Send a success message that includes the new ID
+        snprintf(success_msg, sizeof(success_msg), "Employee added successfully! New Employee ID is: %d", new_employee.id);
+        send(sock, success_msg, strlen(success_msg), 0);
+    } else {
+        const char *error_msg = "Error: Failed to save new employee.";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+
+    // --- 8. Unlock and Close ---
+    flock(fd, LOCK_UN);
+    close(fd);
 }
 
 int is_employee_exists(const char *username, const char *password) {
@@ -999,23 +1052,35 @@ void remove_Manager(int sock) {
 
 void manage_user_roles(int sock) {
     char choice_buffer[4];
-    recv(sock, choice_buffer, sizeof(choice_buffer), 0);
-    int choice = atoi(choice_buffer);
 
-    switch (choice) {
-        case 1:
-            add_BankEmp(sock);
-            break;
-        case 2:
-            remove_BankEmp(sock);
-            break;
-        case 3:
-            add_Manager(sock);
-            break;
-        case 4:
-            remove_Manager(sock);
-            break;
-        default:
-            send(sock, "Invalid choice.\n", 17, 0);
-    }
+    while (1) { // <-- ADDED LOOP
+
+        memset(choice_buffer, 0, sizeof(choice_buffer));
+        int bytes = recv(sock, choice_buffer, sizeof(choice_buffer), 0);
+        if (bytes <= 0) {
+            return; // Client disconnected
+        }
+        int choice = atoi(choice_buffer);
+
+        if (choice == 5) { // <-- ADDED EXIT CONDITION
+            return; // Client chose "Back to Admin Menu"
+        }
+
+        switch (choice) {
+            case 1:
+                add_BankEmp(sock);
+                break;
+            case 2:
+                remove_BankEmp(sock);
+                break;
+            case 3:
+                add_Manager(sock);
+                break;
+            case 4:
+                remove_Manager(sock);
+                break;
+            default:
+                send(sock, "Invalid choice.\n", 17, 0);
+        }
+    } // <-- END OF LOOP
 }
