@@ -2,6 +2,7 @@
 #define EMPLOYEE_H
 
 #include "../Customer/customer.h" 
+#include "../loan.h"
 
 void view_all_customer(int sock);
 void Process_LoanApp(int sock);
@@ -20,14 +21,15 @@ typedef struct {
     int id;
 } Employee;
 
-typedef struct {
-    char customer_username[50];
-    float loan_amount;
-    char loan_purpose[100];
-    float monthly_income;
-    char employment_status[50];
-    char contact_info[50];
-} LoanApplication;
+// typedef struct {
+//     int loan_id;
+//     char customer_username[50];
+//     float loan_amount;
+//     char loan_purpose[100];
+//     float monthly_income;
+//     char employment_status[50];
+//     char contact_info[50];
+// } LoanApplication;
 
 extern Employee emp;
 extern Employee employees[100];

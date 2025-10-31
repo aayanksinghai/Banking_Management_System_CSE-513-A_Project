@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <fcntl.h>   
 #include "manager.h"
+#include "../loan.h"
 #include "../Employee/employee.h"
 #include "../Customer/customer.h"
 
@@ -421,47 +422,24 @@ void Deactivate_Customer_Acc(int sock){
     close(fd);
 }
 
-void Assign_LoanApp_to_Employee(int sock) {
-    int fd_loan = open(LOAN_FILE, O_RDONLY | O_CREAT, 0644);
-    if (fd_loan == -1) {
-        perror("Failed to open loans.txt");
-        send(sock, "Error: Cannot open loan applications.\n", 37, 0);
-        return;
-    }
-
-    int fd_manage = open(MANAGE_LOAN_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
-    if (fd_manage == -1) {
-        perror("Failed to open manage_loan.txt");
-        close(fd_loan);
-        send(sock, "Error: Cannot open loan management file.\n", 41, 0);
-        return;
-    }
-
-    // Lock both files
-    if (flock(fd_loan, LOCK_SH) == -1) {
-        perror("Failed to lock loans.txt");
-        close(fd_loan); close(fd_manage);
-        return;
-    }
-    if (flock(fd_manage, LOCK_EX) == -1) {
-        perror("Failed to lock manage_loan.txt");
-        flock(fd_loan, LOCK_UN);
-        close(fd_loan); close(fd_manage);
-        return;
-    }
-
-    LoanApplication loan;
-    char buffer[BUFFER_SIZE];
-    char line[BUFFER_SIZE];
+// This is a helper function to read all loans from a file descriptor
+// and build a string to send to the client. It also populates a
+// Loan array for later use.
+int load_and_send_loans(int sock, int fd, Loan all_loans[]) {
+    char buffer[BUFFER_SIZE * 4];
+    char line[BUFFER_SIZE] = {0};
     int line_pos = 0;
     ssize_t bytes_read;
-    char employee_assigned[50];
-    char message[BUFFER_SIZE];
+    char all_loans_string[BUFFER_SIZE * 10] = {0};
+    int loan_count = 0;
 
-    while ((bytes_read = read(fd_loan, buffer, sizeof(buffer) - 1)) > 0) {
+    strcat(all_loans_string, "--- Unassigned Loans ---\n");
+
+    lseek(fd, 0, SEEK_SET); // Rewind file
+
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytes_read] = '\0';
         char *ptr = buffer;
-
         while (*ptr) {
             char *newline = strchr(ptr, '\n');
             if (newline) {
@@ -469,36 +447,23 @@ void Assign_LoanApp_to_Employee(int sock) {
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
 
-                // Process the line
-                sscanf(line, "%s %f %s %f %s %s", loan.customer_username, &loan.loan_amount, loan.loan_purpose,
-                       &loan.monthly_income, loan.employment_status, loan.contact_info);
+                // Parse the line and store it
+                sscanf(line, "%d | %s | %f | %s | %f | %s | %s", 
+                       &all_loans[loan_count].loan_id,
+                       all_loans[loan_count].customer_username, 
+                       &all_loans[loan_count].loan_amount, 
+                       all_loans[loan_count].loan_purpose, 
+                       &all_loans[loan_count].monthly_income, 
+                       all_loans[loan_count].employment_status, 
+                       all_loans[loan_count].contact_info);
 
-                if (strcmp(loan.loan_purpose, "car") == 0)
-                    strcpy(employee_assigned, "employee1 (car loan)");
-                else if (strcmp(loan.loan_purpose, "home") == 0)
-                    strcpy(employee_assigned, "employee2 (home loan)");
-                else if (strcmp(loan.loan_purpose, "education") == 0)
-                    strcpy(employee_assigned, "employee3 (education loan)");
-                else if (strcmp(loan.loan_purpose, "gold") == 0)
-                    strcpy(employee_assigned, "employee4 (gold loan)");
-                else if (strcmp(loan.loan_purpose, "personal") == 0)
-                    strcpy(employee_assigned, "employee5 (personal loan)");
-                else
-                    strcpy(employee_assigned, "No employee assigned for this loan purpose");
-
-                snprintf(message, sizeof(message), "Loan application for %s (Purpose: %s) assigned to %s\n",
-                        loan.customer_username, loan.loan_purpose, employee_assigned);
-
-                send(sock, message, strlen(message), 0); // Send update to manager
-
-                // Write to manage_loan.txt
-                snprintf(message, sizeof(message), "%s | %f | %s | Assigned to: %s\n", 
-                        loan.customer_username, loan.loan_amount, loan.loan_purpose, employee_assigned);
-                
-                if (write(fd_manage, message, strlen(message)) == -1) {
-                    perror("Failed to write to manage_loan.txt");
+                // Add to the string to send to manager
+                if (strlen(all_loans_string) + strlen(line) < sizeof(all_loans_string)) {
+                    strcat(all_loans_string, line);
+                    strcat(all_loans_string, "\n");
                 }
-                
+
+                loan_count++;
                 line[0] = '\0';
                 line_pos = 0;
                 ptr = newline + 1;
@@ -509,12 +474,120 @@ void Assign_LoanApp_to_Employee(int sock) {
             }
         }
     }
-    
-    // Unlock and close
-    flock(fd_loan, LOCK_UN);
+
+    if (loan_count == 0) {
+        send(sock, "No unassigned loans found.\n", 28, 0);
+    } else {
+        strcat(all_loans_string, "--- End of List ---\n");
+        send(sock, all_loans_string, strlen(all_loans_string), 0);
+    }
+    return loan_count;
+}
+
+// --- NEW REFACTORED FUNCTION ---
+void Assign_LoanApp_to_Employee(int sock) {
+    Loan all_loans[200]; // In-memory array of loans
+    char message[BUFFER_SIZE];
+    int loan_id_to_assign;
+    int employee_id_to_assign;
+    int loan_count = 0;
+    Loan assigned_loan;
+    int found_loan = 0;
+
+    // --- Part A: Open, Lock, and Send Loan List ---
+    int fd_loan = open(LOAN_FILE, O_RDWR); // Open for Read/Write
+    if (fd_loan == -1) {
+        perror("Failed to open loans.txt");
+        send(sock, "Error: Cannot open loan applications.\n", 37, 0);
+        return;
+    }
+    if (flock(fd_loan, LOCK_EX) == -1) { // EXCLUSIVE LOCK
+        perror("Failed to lock loans.txt");
+        close(fd_loan);
+        send(sock, "Error: Database busy.\n", 21, 0);
+        return;
+    }
+
+    loan_count = load_and_send_loans(sock, fd_loan, all_loans);
+    if (loan_count == 0) {
+        flock(fd_loan, LOCK_UN);
+        close(fd_loan);
+        return; // No loans to assign
+    }
+
+    // --- Part B: Receive Assignment from Manager ---
+    memset(message, 0, BUFFER_SIZE);
+    int bytes = recv(sock, message, BUFFER_SIZE - 1, 0);
+    if (bytes <= 0) { // Client disconnected
+        flock(fd_loan, LOCK_UN);
+        close(fd_loan);
+        return;
+    }
+    message[bytes] = '\0';
+    sscanf(message, "%d %d", &loan_id_to_assign, &employee_id_to_assign);
+
+    // --- Part C: Append to manage_loan.txt ---
+    int fd_manage = open(MANAGE_LOAN_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd_manage == -1) {
+        perror("Failed to open manage_loan.txt");
+        send(sock, "Error: Cannot open management file.\n", 37, 0);
+        flock(fd_loan, LOCK_UN);
+        close(fd_loan);
+        return;
+    }
+    if (flock(fd_manage, LOCK_EX) == -1) {
+        perror("Failed to lock manage_loan.txt");
+        // ... (error handling) ...
+    }
+
+    // Find the loan to assign
+    for (int i = 0; i < loan_count; i++) {
+        if (all_loans[i].loan_id == loan_id_to_assign) {
+            assigned_loan = all_loans[i];
+            found_loan = 1;
+            break;
+        }
+    }
+
+    if (!found_loan) {
+        send(sock, "Error: Loan ID not found.\n", 26, 0);
+    } else {
+        // Write to management file
+        snprintf(message, sizeof(message), "%d | %d | %s | %.2f | %s\n", 
+                assigned_loan.loan_id,
+                employee_id_to_assign,
+                assigned_loan.customer_username,
+                assigned_loan.loan_amount,
+                assigned_loan.loan_purpose);
+        write(fd_manage, message, strlen(message));
+
+        // --- Part D: Rewrite loans.txt to remove the assigned loan ---
+        lseek(fd_loan, 0, SEEK_SET); // Rewind
+        ftruncate(fd_loan, 0);       // Clear file
+
+        for (int i = 0; i < loan_count; i++) {
+            if (all_loans[i].loan_id == loan_id_to_assign) {
+                continue; // Skip the assigned loan
+            }
+            // Write all *other* loans back to the file
+            snprintf(message, sizeof(message), "%d | %s | %.2f | %s | %.2f | %s | %s\n", 
+                    all_loans[i].loan_id,
+                    all_loans[i].customer_username, 
+                    all_loans[i].loan_amount, 
+                    all_loans[i].loan_purpose, 
+                    all_loans[i].monthly_income, 
+                    all_loans[i].employment_status, 
+                    all_loans[i].contact_info);
+            write(fd_loan, message, strlen(message));
+        }
+        send(sock, "Loan assigned successfully.\n", 28, 0);
+    }
+
+    // --- Part E: Unlock and Close All ---
     flock(fd_manage, LOCK_UN);
-    close(fd_loan);
     close(fd_manage);
+    flock(fd_loan, LOCK_UN);
+    close(fd_loan);
 }
 
 void Review_Customer_feedback(int sock) {

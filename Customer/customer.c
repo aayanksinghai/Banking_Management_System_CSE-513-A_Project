@@ -11,6 +11,7 @@
 #include <time.h>
 #include <errno.h>
 #include "customer.h"
+#include "../loan.h"
 
 
 #define BUFFER_SIZE 1024
@@ -23,14 +24,15 @@ Customer customers[100];
 int customer_count = 0;
 Customer new_customer;
 
-typedef struct {
-    char username[50];
-    float loan_amount;
-    char loan_purpose[50];
-    float monthly_income;
-    char employment_status[50];
-    char contact_info[20];
-} Loan;
+// typedef struct {
+//     int loan_id;
+//     char username[50];
+//     float loan_amount;
+//     char loan_purpose[50];
+//     float monthly_income;
+//     char employment_status[50];
+//     char contact_info[20];
+// } Loan;
 
 // Function prototypes
 void view_account_balance(const char *username, int sock);
@@ -474,48 +476,93 @@ void transfer_funds(const char *username, int customer_id, int sock) {
 }
 
 void apply_for_loan(const char *username, int sock) {
-    Loan loan;
+    Loan new_loan; // Use the struct from loan.h
     char msg[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE];
+    Loan temp_loan; // For reading/parsing
+    int max_loan_id = 0;
 
-    memset(msg, 0, BUFFER_SIZE); // 1. Clear the buffer
-    int bytes_recvd = recv(sock, msg, sizeof(msg) - 1, 0); // 2. Get byte count
-    msg[bytes_recvd] = '\0'; // 3. Add the null-terminator
-    
+    // 1. Receive data from client
+    memset(msg, 0, BUFFER_SIZE);
+    int bytes_recvd = recv(sock, msg, sizeof(msg) - 1, 0);
+    msg[bytes_recvd] = '\0';
+
     sscanf(msg, "%f %s %f %s %s", 
-           &loan.loan_amount, 
-           loan.loan_purpose, 
-           &loan.monthly_income, 
-           loan.employment_status, 
-           loan.contact_info);
+           &new_loan.loan_amount, 
+           new_loan.loan_purpose, 
+           &new_loan.monthly_income, 
+           new_loan.employment_status, 
+           new_loan.contact_info);
 
-    strcpy(loan.username, username);
+    strcpy(new_loan.customer_username, username);
 
-    int fd = open(LOAN_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    // 2. Open and Lock LOAN_FILE to find max ID
+    int fd = open(LOAN_FILE, O_RDWR | O_CREAT, 0644);
     if (fd == -1) {
         perror("Failed to open loan file");
         send(sock, "Error: Loan application failed.\n", 31, 0);
         return;
     }
-
-    if (flock(fd, LOCK_EX) == -1) {
+    if (flock(fd, LOCK_EX) == -1) { // Exclusive lock for read/write
         perror("Failed to lock loan file");
         close(fd);
         send(sock, "Error: Server busy, try again.\n", 30, 0);
         return;
     }
 
+    // 3. Read all loans to find the highest ID
+    char read_buffer[BUFFER_SIZE * 4];
+    char line[BUFFER_SIZE] = {0};
+    int line_pos = 0;
+    ssize_t bytes_read;
 
-    char buffer[BUFFER_SIZE];
-    snprintf(buffer, sizeof(buffer), "%s %.2f %s %.2f %s %s\n", 
-            loan.username, 
-            loan.loan_amount, 
-            loan.loan_purpose, 
-            loan.monthly_income, 
-            loan.employment_status, 
-            loan.contact_info);
+    while ((bytes_read = read(fd, read_buffer, sizeof(read_buffer) - 1)) > 0) {
+        read_buffer[bytes_read] = '\0';
+        char *ptr = read_buffer;
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
 
+                // Parse the line to get the ID
+                sscanf(line, "%d |", &temp_loan.loan_id);
+                if (temp_loan.loan_id > max_loan_id) {
+                    max_loan_id = temp_loan.loan_id;
+                }
+
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+    }
+
+    // 4. Set new ID (start at 1000)
+    new_loan.loan_id = (max_loan_id == 0) ? 1000 : max_loan_id + 1;
+
+    // 5. Format and append the new loan
+    snprintf(buffer, sizeof(buffer), "%d | %s | %.2f | %s | %.2f | %s | %s\n", 
+            new_loan.loan_id,
+            new_loan.customer_username, 
+            new_loan.loan_amount, 
+            new_loan.loan_purpose, 
+            new_loan.monthly_income, 
+            new_loan.employment_status, 
+            new_loan.contact_info); 
+
+    // lseek to end to append
+    lseek(fd, 0, SEEK_END);
     if (write(fd, buffer, strlen(buffer)) == -1) {
         perror("Failed to write loan application");
+        flock(fd, LOCK_UN);
+        close(fd);
+        return;
     }
 
     flock(fd, LOCK_UN);

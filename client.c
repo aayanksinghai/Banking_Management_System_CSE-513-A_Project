@@ -583,14 +583,33 @@ void show_manager_menu(int sock, const char* username){
                 // -------------------
                 break;
             case 3:
-                while ((bytes_received = recv(sock, server_reply, BUFFER_SIZE - 1, 0)) > 0) {
-                    server_reply[bytes_received] = '\0';  
-                    printf("%s", server_reply);
-                    if (bytes_received < BUFFER_SIZE - 1) 
-                        break;
-                }
+                // Part A: Receive the list of loans
                 memset(server_reply, 0, BUFFER_SIZE);
-                break;
+                bytes_received = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                server_reply[bytes_received] = '\0';  
+                printf("%s", server_reply); // Print the list of loans
+
+                // Check if server said no loans found
+                if (strstr(server_reply, "No unassigned loans") != NULL) {
+                    break; // Go back to menu
+                }
+
+                // Part B: Send the assignment
+                int loan_id, emp_id;
+                printf("Enter Loan ID to assign: ");
+                scanf("%d", &loan_id);
+                printf("Enter Employee ID to assign to: ");
+                scanf("%d", &emp_id);
+
+                snprintf(message, sizeof(message), "%d %d", loan_id, emp_id);
+                send(sock, message, strlen(message), 0);
+
+                // Part C: Receive final confirmation
+                memset(server_reply, 0, BUFFER_SIZE);
+                bytes_received = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                server_reply[bytes_received] = '\0';  
+                printf("%s\n", server_reply); // Print "Assigned successfully" or "Error"
+            break;
             case 4: 
                 while ((bytes_received = recv(sock, server_reply, BUFFER_SIZE - 1, 0)) > 0) {
                     server_reply[bytes_received] = '\0';  

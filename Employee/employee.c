@@ -528,7 +528,7 @@ void Process_LoanApp(int sock) {
         return;
     }
 
-    LoanApplication loan_app;
+    Loan loan_app;
     char buffer[BUFFER_SIZE*2];
     char line[BUFFER_SIZE];
     int line_pos = 0;
