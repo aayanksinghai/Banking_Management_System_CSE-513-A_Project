@@ -285,8 +285,8 @@ void show_admin_menu(int sock, const char* username){
                "1. View All Customers\n"
                "2. Add new Customer\n"
                "3. Remove Customer\n"
-               "4. Manage User Roles\n"
-               "5. Modify Customer/Employee Details\n" // ADD THIS
+               "4. Manage User Roles  (Employees & Managers)\n"
+               "5. Modify Customer/Employee/Manager Details\n" // ADD THIS
                "6. Change Password\n"
                "7. Logout\n"
                "Enter your choice: ");
@@ -334,7 +334,7 @@ void show_admin_menu(int sock, const char* username){
             case 5: // ADD THIS NEW CASE
                 int user_type;
                 char old_username[50], new_username[50], new_password[50];
-                printf("Modify details for:\n1. Customer\n2. Employee\nEnter choice: ");
+                printf("Modify details for:\n1. Customer\n2. Employee\n3. Manager\nEnter choice: ");
                 scanf("%d", &user_type);
                 sprintf(message, "%d", user_type);
                 send(sock, message, strlen(message), 0);

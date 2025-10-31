@@ -6,10 +6,10 @@
 #include "../Manager/manager.h"
 
 void handle_admin_login(int sock);
-// void load_customers(int sock);
-// void save_customers();
 int _admin_load_customers_from_fd(int fd, int sock);
 int _admin_save_customers_to_fd(int fd);
+int _admin_load_managers_from_fd(int fd);
+int _admin_save_managers_to_fd(int fd);
 void save_new_customer(Customer new_customer);
 void save_new_employee(Employee new_employee);
 void add_customer(int sock);
@@ -25,5 +25,6 @@ void remove_BankEmp(int sock);
 void add_Manager(int sock);      
 void remove_Manager(int sock);
 int authenticate_admin(const char* username, const char* password);
+void modify_manager_details(int sock);
 
 #endif

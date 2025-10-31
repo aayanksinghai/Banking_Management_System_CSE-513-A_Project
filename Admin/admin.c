@@ -706,15 +706,70 @@ void modify_employee_details(int sock) {
     close(fd);
 }
 
+void modify_manager_details(int sock) {
+    char old_username[50], new_username[50], new_password[50];
+    char buffer[BUFFER_SIZE];
+    int found = 0;
+
+    // Get details from client
+    memset(buffer, 0, BUFFER_SIZE);
+    recv(sock, buffer, BUFFER_SIZE - 1, 0);
+    sscanf(buffer, "%s %s %s", old_username, new_username, new_password);
+
+    int fd = open(MANAGER_FILE, O_RDWR); // <-- Use MANAGER_FILE
+    if (fd == -1) {
+        const char *error_msg = "Error: Could not open manager file.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+        return;
+    }
+
+    if (flock(fd, LOCK_EX) == -1) {
+        perror("Failed to lock manager file for update");
+        close(fd);
+        const char *error_msg = "Error: Database is busy. Try again.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+        return;
+    }
+
+    // 1. READ (using manager helper)
+    _admin_load_managers_from_fd(fd); // <-- Use manager helper
+
+    // 2. MODIFY (in memory)
+    for (int i = 0; i < manager_count; i++) { // <-- Use manager_count
+        if (strcmp(managers[i].username, old_username) == 0) { // <-- Use managers array
+            found = 1;
+            strcpy(managers[i].username, new_username);
+            strcpy(managers[i].password, new_password);
+            break;
+        }
+    }
+
+    // 3. WRITE (back to file)
+    if (found) {
+        _admin_save_managers_to_fd(fd); // <-- Use manager helper
+        const char *success_msg = "Manager update completed.\n";
+        send(sock, success_msg, strlen(success_msg), 0);
+    } else {
+        const char *error_msg = "Error: Manager not found.\n";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+    
+    flock(fd, LOCK_UN);
+    close(fd);
+}
+
 void modify_user_details(int sock) {
     char choice_buffer[4];
-    recv(sock, choice_buffer, sizeof(choice_buffer), 0);
+    memset(choice_buffer, 0, sizeof(choice_buffer));
+    recv(sock, choice_buffer, sizeof(choice_buffer) - 1, 0);
     int choice = atoi(choice_buffer);
 
     if (choice == 1) {
         modify_customer_details(sock);
     } else if (choice == 2) {
         modify_employee_details(sock);
+    } else if (choice == 3) { // <-- ADD THIS
+        modify_manager_details(sock);
     } else {
         const char *error_msg = "Invalid user type selected.\n";
         send(sock, error_msg, strlen(error_msg), 0);
