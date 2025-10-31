@@ -17,9 +17,10 @@
 #define CUSTOMER_FILE "Customer/customers.txt"
 #define EMPLOYEE_FILE "Employee/employees.txt"
 #define MANAGER_FILE "Manager/managers.txt"
+#define ADMIN_FILE "Admin/admin.txt"
 
-static char admin_username[] = "root";
-static char admin_password[] = "root";
+// static char admin_username[] = "root";
+// static char admin_password[] = "root";
 
 Employee employees[100];
 int emp_count = 0;
@@ -180,23 +181,6 @@ int is_employee_exists(const char *username, const char *password) {
     close(fd);          // Use 'close' (system call)
     
     return found;
-
-    /*
-    char line[BUFFER_SIZE];
-    char existing_username[30], existing_password[30];
-    
-    while (fgets(line, sizeof(line), file)) {
-        sscanf(line, "%s %s", existing_username, existing_password);
-
-        if (strcmp(existing_username, username) == 0 && strcmp(existing_password, password) == 0) {
-            fclose(file);
-            return 1;
-        }
-    }
-
-    fclose(file);
-    return 0; 
-    */
 }
 void save_new_employee(Employee new_employee) {
 
@@ -227,18 +211,6 @@ void save_new_employee(Employee new_employee) {
 
     flock(fd, LOCK_UN); // Unlock
     close(fd);          // Use 'close' (system call)
-
-    /*
-    FILE *file = fopen(EMPLOYEE_FILE, "a");
-    if (file == NULL) {
-        perror("Failed to open customers file for appending");
-        exit(1);
-    }
-
-    fprintf(file, "%s %s %d\n", new_employee.username, new_employee.password, new_employee.id);
-    
-    fclose(file);
-    */
 }
 
 int _admin_load_customers_from_fd(int fd, int sock) {
@@ -377,29 +349,6 @@ int is_customer_exists(const char *username, const char *password) {
     flock(fd, LOCK_UN);
     close(fd);
     return found;
-
-    /*
-    FILE *file = fopen(CUSTOMER_FILE, "r");
-    if (file == NULL) {
-        perror("Failed to open customers file");
-        return 0;
-    }
-
-    char line[BUFFER_SIZE];
-    char existing_username[30], existing_password[30];
-    
-    while (fgets(line, sizeof(line), file)) {
-        sscanf(line, "%s %s", existing_username, existing_password);
-
-        if (strcmp(existing_username, username) == 0 && strcmp(existing_password, password) == 0) {
-            fclose(file);
-            return 1;
-        }
-    }
-
-    fclose(file);
-    return 0; 
-    */
 }
 
 // Function to save new customer to the file
@@ -428,19 +377,6 @@ void save_new_customer(Customer new_customer) {
     
     flock(fd, LOCK_UN);
     close(fd);
-
-    /*
-    FILE *file = fopen(CUSTOMER_FILE, "a");
-    if (file == NULL) {
-        perror("Failed to open customers file for appending");
-        exit(1);
-    }
-
-    fprintf(file, "%s %s %.2f %d %d\n", new_customer.username, new_customer.password, 
-            new_customer.balance, new_customer.id, new_customer.is_active);
-    
-    fclose(file);
-    */
 }
 
 // Function to add a new customer
@@ -680,6 +616,54 @@ void modify_user_details(int sock) {
     }
 }
 
+int authenticate_admin(const char* username, const char* password) {
+    int fd = open(ADMIN_FILE, O_RDONLY);
+    if (fd == -1) {
+        perror("Failed to open admin file");
+        return 0; // Cannot log in if file doesn't exist
+    }
+
+    flock(fd, LOCK_SH);
+
+    char buffer[BUFFER_SIZE];
+    char line[BUFFER_SIZE];
+    int line_pos = 0;
+    ssize_t bytes_read;
+    int found = 0;
+
+    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        char *ptr = buffer;
+        while (*ptr) {
+            char *newline = strchr(ptr, '\n');
+            if (newline) {
+                int len = newline - ptr;
+                strncat(line, ptr, len);
+                line[line_pos + len] = '\0';
+
+                char file_user[50], file_pass[50];
+                sscanf(line, "%s %s", file_user, file_pass);
+                if (strcmp(file_user, username) == 0 && strcmp(file_pass, password) == 0) {
+                    found = 1;
+                    break;
+                }
+
+                line[0] = '\0';
+                line_pos = 0;
+                ptr = newline + 1;
+            } else {
+                strcpy(line, ptr);
+                line_pos = strlen(line);
+                break;
+            }
+        }
+        if (found) break;
+    }
+    flock(fd, LOCK_UN); 
+    close(fd);
+    return found;
+}
+
 void handle_admin_login(int sock) {
     char username[30], password[30];
 
@@ -693,7 +677,7 @@ void handle_admin_login(int sock) {
     recv(sock, password, sizeof(password), 0);
     password[strcspn(password, "\n")] = 0;
 
-    if (strcmp(username, admin_username) == 0 && strcmp(password, admin_password) == 0) {
+    if (authenticate_admin(username, password)) {
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
 
@@ -738,29 +722,59 @@ void handle_admin_login(int sock) {
 }
 
 void change_admin_password(int sock) {
-    char old_password[50], new_password[50];
+    char old_password[50], new_password[50], username[50], id[10];
     char buffer[BUFFER_SIZE];
+    int found = 0;
 
+    // --- Step 1: Receive old password from client ---
     const char *old_prompt = "Enter old password: ";
     send(sock, old_prompt, strlen(old_prompt), 0);
-    int bytes = recv(sock, old_password, sizeof(old_password), 0);
+    int bytes = recv(sock, old_password, sizeof(old_password) - 1, 0);
     old_password[bytes] = '\0';
     old_password[strcspn(old_password, "\n")] = 0;
 
-    if (strcmp(old_password, admin_password) != 0) {
+    // --- Step 2: Open, Lock, and Read the admin file ---
+    int fd = open(ADMIN_FILE, O_RDWR);
+    if (fd == -1) {
+        perror("Failed to open admin file");
+        send(sock, "Error: Database failure.\n", 25, 0);
+        return;
+    }
+    flock(fd, LOCK_EX);
+
+    // Read the single line from the admin file
+    char line[BUFFER_SIZE];
+    bytes = read(fd, line, sizeof(line) - 1);
+    line[bytes] = '\0';
+    sscanf(line, "%s %s %s", username, buffer, id); // buffer now holds the real password
+
+    // --- Step 3: Check old password ---
+    if (strcmp(old_password, buffer) != 0) {
         const char *error_msg = "Old password did not match.";
         send(sock, error_msg, strlen(error_msg), 0);
+        flock(fd, LOCK_UN);
+        close(fd);
         return;
     }
 
+    // --- Step 4: Get new password from client ---
     const char *new_prompt = "Password match! Enter new password: ";
     send(sock, new_prompt, strlen(new_prompt), 0);
-    bytes = recv(sock, new_password, sizeof(new_password), 0);
+    bytes = recv(sock, new_password, sizeof(new_password) - 1, 0);
     new_password[bytes] = '\0';
     new_password[strcspn(new_password, "\n")] = 0;
 
-    // Update the password in memory
-    strcpy(admin_password, new_password);
+    // --- Step 5: Save the new password to the file ---
+    // Rewind and clear the file
+    lseek(fd, 0, SEEK_SET);
+    ftruncate(fd, 0);
+
+    // Write the updated line
+    snprintf(buffer, sizeof(buffer), "%s %s %s\n", username, new_password, id);
+    write(fd, buffer, strlen(buffer));
+
+    flock(fd, LOCK_UN);
+    close(fd);
 
     const char *success_msg = "Password changed successfully!";
     send(sock, success_msg, strlen(success_msg), 0);

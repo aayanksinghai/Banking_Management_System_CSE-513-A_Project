@@ -24,5 +24,6 @@ void manage_user_roles(int sock);
 void remove_BankEmp(int sock);
 void add_Manager(int sock);      
 void remove_Manager(int sock);
+int authenticate_admin(const char* username, const char* password);
 
 #endif
