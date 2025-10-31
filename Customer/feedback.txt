@@ -1,2 +1,4 @@
 100 : Seeking for a loan to purchase car
-101 : Seeking for education loan '½p
+100 : please review my loan for car
+100 : please check my loan status's
+100 : What is the interest rate for loan on education?

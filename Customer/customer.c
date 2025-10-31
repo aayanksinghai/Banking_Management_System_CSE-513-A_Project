@@ -575,8 +575,8 @@ void change_password(const char *username, int sock) {
     char old_password[50], new_password[50];
     int password_matched = 0;
 
-    recv(sock, old_password, sizeof(old_password), 0);
-    old_password[strcspn(old_password, "\n")] = 0;  
+    int bytes_recvd = recv(sock, old_password, sizeof(old_password) - 1, 0); // Use -1
+    old_password[bytes_recvd] = '\0'; // Add the null-terminator
 
     int fd = open(CUSTOMER_FILE, O_RDWR | O_CREAT, 0644);
     if (fd == -1) {
@@ -609,8 +609,8 @@ void change_password(const char *username, int sock) {
         const char *match_msg = "Password match! Enter new password.";
         send(sock, match_msg, strlen(match_msg), 0);
 
-        recv(sock, new_password, sizeof(new_password), 0);
-        new_password[strcspn(new_password, "\n")] = 0;  
+        bytes_recvd = recv(sock, new_password, sizeof(new_password) - 1, 0); // Use -1
+        new_password[bytes_recvd] = '\0'; // Add the null-terminator 
         
         // Update in memory
         strcpy(customers[user_index].password, new_password);  
@@ -636,9 +636,9 @@ void change_password(const char *username, int sock) {
 void add_feedback(int customer_id, int sock){
     char feedback[500];
 
-    recv(sock, feedback, sizeof(feedback), 0);
-    feedback[strcspn(feedback, "\n")] = 0;
-
+    int bytes_recvd = recv(sock, feedback, sizeof(feedback) - 1, 0); // Use -1
+    feedback[bytes_recvd] = '\0'; // Add the null-terminator
+    
     int fd = open(FEEDBACK_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
     if (fd == -1) {
         perror("Error opening feedback file");
