@@ -9,3 +9,4 @@
 100 | aayank | Transfer (Credit) | 300.00 | Fri Oct 31 23:31:43 2025
 101 | rahul | Loan (Approved) | 2000.00 | Fri Oct 31 23:35:24 2025
 100 | aayank | Loan (Approved) | 100.00 | Sat Nov  1 00:37:42 2025
+100 | aayank | Loan (Approved) | 10.00 | Sat Nov  1 00:57:47 2025

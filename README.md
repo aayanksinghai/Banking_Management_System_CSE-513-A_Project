@@ -50,32 +50,38 @@ The system includes the following roles:
 ## 📂 System Structure
 
 ```bash
-BankingManagementSystem/
+Banking_Management_System_CSE-513-A_Project-main/
 ├── Admin/
 │   ├── admin.c
-│   └── admin.h
-├── Manager/
-│   ├── manager.c
-│   └── manager.h
-├── Employee/
-│   ├── employee.c
-│   └── employee.h
+│   ├── admin.h
+│   └── admin.txt
 ├── Customer/
 │   ├── customer.c
 │   ├── customer.h
+│   ├── customers.txt
 │   ├── feedback.txt
-│   ├── loans.txt
-│   ├── transaction_history.txt
-│   └── customers.txt
+│   └── transaction_history.txt
+├── Employee/
+│   ├── employee.c
+│   ├── employee.h
+│   └── employees.txt
+├── Loan/
+│   ├── loan.h
+│   ├── processed_loans_approved.txt
+│   └── processed_loans_rejected.txt
+├── Manager/
+│   ├── manager.c
+│   ├── manager.h
+│   └── managers.txt
+├── Session/
+│   ├── session.c
+│   └── session.h
+├── BankingManagementSys_BluePrint.png
+├── README.md
+├── client
 ├── client.c
-├── server.c
-├── session.c
-├── session.h
-├── loan.h
-├── manage_loan.txt
-├── processed_loans_approved.txt
-├── processed_loans_rejected.txt
-└── README.md
+├── server
+└── server.c
 ```
 
 ### Setup

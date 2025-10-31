@@ -427,9 +427,28 @@ void show_employee_menu(int sock, const char* username){
                     }
 
                     if (strstr(server_reply, "--- Loan ID:")) {
-                        int choice;
-                        printf("Approve (1) or Reject (0): ");
-                        scanf("%d", &choice);
+                        char input_buffer[10];
+                        int choice = -1;
+
+                        while (1) {
+                            printf("Approve (1) or Reject (0): ");
+                            scanf("%s", input_buffer);
+
+                            if (strcmp(input_buffer, "0") == 0) {
+                                choice = 0;
+                                break; // Valid
+                            }
+                            if (strcmp(input_buffer, "1") == 0) {
+                                choice = 1;
+                                break; // Valid
+                            }
+                            
+                            printf("Invalid choice. Please enter 0 or 1.\n");
+                            // Clear stdin in case of bad input
+                            while(getchar() != '\n');
+                        }
+                        
+                        // Send the validated choice
                         sprintf(message, "%d", choice);
                         send(sock, message, strlen(message), 0);
                     }
