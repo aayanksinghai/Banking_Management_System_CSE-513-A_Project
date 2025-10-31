@@ -407,7 +407,7 @@ void show_employee_menu(int sock, const char* username){
     while (1) {
         printf("Employee Menu:\n"
                "1. View All Customers\n"
-               "2. Process Loan Applications (Approve/Reject All)\n"
+               "2. Process Loan Applications (Approve/Reject)\n"
                "3. Add Customer\n"
                "4. Remove Customer\n"
                "5. Update Customer\n"
@@ -427,20 +427,36 @@ void show_employee_menu(int sock, const char* username){
                 memset(server_reply, 0, BUFFER_SIZE);
                 break;
             case 2:
-                recv(sock, message, BUFFER_SIZE, 0);
-                printf("%s", message); 
-
-                while (1) {
-                    memset(message, 0, sizeof(message));                    
-                    // Receive loan application result (approval/rejection) from server
-                    int bytes_received = recv(sock, message, BUFFER_SIZE, 0);
-                    if (bytes_received <= 0 )
-                        break;
-                    printf("%s", message); 
-                    if (strstr(message, "Loan processing completed")) 
-                        break;
+            // This single loop will handle all messages for this operation
+            while (1) {
+                memset(server_reply, 0, BUFFER_SIZE);
+                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE - 1, 0);
+                if (bytes_recvd <= 0) {
+                    break; // Server disconnected
                 }
-                break; 
+                server_reply[bytes_recvd] = '\0';
+                printf("%s\n", server_reply); // Print whatever we got
+
+                // Check for "terminal" (ending) messages from the server
+                if (strstr(server_reply, "completed") != NULL || 
+                    strstr(server_reply, "No loans to process") != NULL) 
+                {
+                    break; // This operation is over, exit the while loop
+                }
+
+                // ONLY prompt if the message contains loan details
+                if (strstr(server_reply, "--- Loan ID:")) {
+                    // This message *is* the loan data. Ask for a response.
+                    int choice;
+                    printf("Approve (1) or Reject (0): ");
+                    scanf("%d", &choice);
+                    sprintf(message, "%d", choice);
+                    send(sock, message, strlen(message), 0);
+                }
+                // If it was just the "Processing..." header, the loop
+                // will just repeat and wait for the next message (the loan).
+            }
+            break;
 
             case 3:
                 printf("Enter new customer details (username password balance): ");
@@ -497,9 +513,9 @@ void show_employee_menu(int sock, const char* username){
             case 7:
                 // Server will send back the list of assigned loans
                 memset(server_reply, 0, BUFFER_SIZE);
-                int bytes_recvd = recv(sock, server_reply, BUFFER_SIZE, 0);
-                if(bytes_recvd > 0) {
-                    server_reply[bytes_recvd] = '\0';
+                int bytes_recvds = recv(sock, server_reply, BUFFER_SIZE, 0);
+                if(bytes_recvds > 0) {
+                    server_reply[bytes_recvds] = '\0';
                     printf("%s\n", server_reply);
                 }
                 memset(server_reply, 0, BUFFER_SIZE); // Clear for next loop

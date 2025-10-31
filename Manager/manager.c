@@ -553,12 +553,15 @@ void Assign_LoanApp_to_Employee(int sock) {
         send(sock, "Error: Loan ID not found.\n", 26, 0);
     } else {
         // Write to management file
-        snprintf(message, sizeof(message), "%d | %d | %s | %.2f | %s\n", 
+        snprintf(message, sizeof(message), "%d | %d | %s | %.2f | %s | %.2f | %s | %s\n", 
                 assigned_loan.loan_id,
                 employee_id_to_assign,
                 assigned_loan.customer_username,
                 assigned_loan.loan_amount,
-                assigned_loan.loan_purpose);
+                assigned_loan.loan_purpose,
+                assigned_loan.monthly_income,
+                assigned_loan.employment_status,
+                assigned_loan.contact_info);
         write(fd_manage, message, strlen(message));
 
         // --- Part D: Rewrite loans.txt to remove the assigned loan ---

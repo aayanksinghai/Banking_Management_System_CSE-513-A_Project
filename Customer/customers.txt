@@ -1,4 +1,4 @@
-aayankji root 600.00 100 1
+aayankji root 1000.00 100 1
 rahul root 4300.00 101 1
 suchir root123 2200.00 102 1
 pankaj_deopa pankaj 24800.00 103 1

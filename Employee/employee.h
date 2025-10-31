@@ -5,7 +5,7 @@
 #include "../loan.h"
 
 void view_all_customer(int sock);
-void Process_LoanApp(int sock);
+void Process_LoanApp(int sock, int employee_id);
 void add_customer(int sock);
 void remove_customer(int sock);
 void update_customer(int sock);
