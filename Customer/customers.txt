@@ -1,4 +1,3 @@
 aayank root 600.00 100 1
 rahul root 4300.00 101 1
 suchir root123 2200.00 102 1
-12  0.00 103 1

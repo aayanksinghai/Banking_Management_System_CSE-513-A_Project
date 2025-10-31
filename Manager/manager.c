@@ -18,13 +18,10 @@
 #define EMPLOYEE_FILE "Employee/employees.txt"
 #define LOAN_FILE "Customer/loans.txt"
 #define FEEDBACK_FILE "Customer/feedback.txt"
-#define MANAGE_LOAN_FILE "manage_loan.txt" // New define for clarity
+#define MANAGE_LOAN_FILE "manage_loan.txt"
 #define MANAGER_FILE "Manager/managers.txt"
 
-// const char manager_username[] = "BudgetBoss";
-// const char manager_password[] = "OnBudget";
-
-extern Manager managers[100]; //for authentication
+extern Manager managers[100];
 extern int manager_count;
 
 int authenticate_manager(const char* username, const char* password);
@@ -116,7 +113,7 @@ int _mgr_load_managers_from_fd(int fd) {
         return -1;
     }
     char buffer[BUFFER_SIZE * 4];
-    char line[BUFFER_SIZE];
+    char line[BUFFER_SIZE]={0};
     int line_pos = 0;
     ssize_t bytes_read;
     manager_count = 0; 
@@ -181,7 +178,7 @@ int _mgr_load_customers_from_fd(int fd) {
     }
 
     char buffer[BUFFER_SIZE * 4];
-    char line[BUFFER_SIZE];
+    char line[BUFFER_SIZE]={0};
     int line_pos = 0;
     ssize_t bytes_read;
     customer_count = 0; 
@@ -306,12 +303,14 @@ void handle_manager_login(int sock) {
 }
 
 void Activate_Customer_Acc(int sock) {
-    char username[BUFFER_SIZE];
-    char buffer[BUFFER_SIZE];
+    char id_buffer[BUFFER_SIZE];
     int found = 0;
 
-    recv(sock, username, BUFFER_SIZE, 0);
-    username[strcspn(username, "\n")] = 0;  // Remove newline character
+    memset(id_buffer, 0, BUFFER_SIZE);
+    int bytes = recv(sock, id_buffer, BUFFER_SIZE - 1, 0);
+    if (bytes <= 0) return; // Handle disconnect
+    id_buffer[strcspn(id_buffer, "\n")] = 0;
+    int account_id = atoi(id_buffer);
 
     int fd = open(CUSTOMER_FILE, O_RDWR);
     if (fd == -1) {
@@ -332,7 +331,7 @@ void Activate_Customer_Acc(int sock) {
     // 2. MODIFY
     char msg[100];
     for(int i=0; i<customer_count; i++) {
-        if (strcmp(customers[i].username, username) == 0) {
+        if (customers[i].id == account_id) {
             found = 1;
             if (customers[i].is_active == 0) {
                 customers[i].is_active = 1; // Activate in memory
@@ -345,7 +344,7 @@ void Activate_Customer_Acc(int sock) {
     }
 
     if (!found) {
-        strcpy(msg, "Username not found\n");
+        strcpy(msg, "Customer ID not found\n");
     }
 
     // 3. WRITE (if found and needed to be activated)
@@ -363,11 +362,14 @@ void Activate_Customer_Acc(int sock) {
 }
 
 void Deactivate_Customer_Acc(int sock){
-    char username[BUFFER_SIZE];
+    char id_buffer[BUFFER_SIZE];
     int found = 0;
 
-    recv(sock, username, BUFFER_SIZE, 0);
-    username[strcspn(username, "\n")] = 0; 
+    memset(id_buffer, 0, BUFFER_SIZE);
+    int bytes = recv(sock, id_buffer, BUFFER_SIZE - 1, 0);
+    if (bytes <= 0) return; // Handle disconnect
+    id_buffer[strcspn(id_buffer, "\n")] = 0;
+    int account_id = atoi(id_buffer);
 
     int fd = open(CUSTOMER_FILE, O_RDWR | O_CREAT, 0644);
     if (fd == -1) {
@@ -389,7 +391,7 @@ void Deactivate_Customer_Acc(int sock){
     // 2. MODIFY
     char msg[100];
     for(int i=0; i<customer_count; i++) {
-        if (strcmp(customers[i].username, username) == 0) {
+        if (customers[i].id == account_id) {
             found = 1;
             if (customers[i].is_active == 1) {
                 customers[i].is_active = 0; // Deactivate in memory
@@ -402,7 +404,7 @@ void Deactivate_Customer_Acc(int sock){
     }
 
     if (!found) {
-        strcpy(msg, "Username not found\n");
+        strcpy(msg, "Customer ID not found\n");
     }
 
     // 3. WRITE (if found and needed to be deactivated)

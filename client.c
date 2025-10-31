@@ -555,7 +555,7 @@ void show_manager_menu(int sock, const char* username){
 
         switch (choice) {
             case 1:  
-                printf("Enter the username to activate: ");
+                printf("Enter the customerID to activate: ");
                 getchar(); // Clear buffer
                 fgets(message, BUFFER_SIZE, stdin);
                 message[strcspn(message, "\n")] = 0;  // Remove newline character
@@ -569,7 +569,7 @@ void show_manager_menu(int sock, const char* username){
                 // -------------------
                 break;
             case 2:
-                printf("Enter the username to deactivate: ");
+                printf("Enter the customerID to deactivate: ");
                 getchar(); // Clear buffer
                 fgets(message, BUFFER_SIZE, stdin);
                 message[strcspn(message, "\n")] = 0;  // Remove newline character
