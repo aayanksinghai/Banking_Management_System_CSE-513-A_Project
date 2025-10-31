@@ -18,7 +18,7 @@
 
 #define BUFFER_SIZE 1024
 #define CUSTOMER_FILE "Customer/customers.txt"
-#define LOAN_FILE "Customer/loans.txt"
+#define LOAN_FILE "Loan/loans.txt"
 #define FEEDBACK_FILE "Customer/feedback.txt"
 #define TRANSACTION_FILE "Customer/transaction_history.txt"
 

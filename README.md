@@ -81,13 +81,25 @@ BankingManagementSystem/
 ### Setup
 
 - **Compile the server**
+
+```bash
   gcc server.c Admin/admin.c Customer/customer.c Employee/employee.c Manager/manager.c Session/session.c -o server -lpthread
+```
 
 - **Compile the client**
+
+```bash
   gcc client.c Admin/admin.c Customer/customer.c Employee/employee.c Manager/manager.c Session/session.c -o client -lpthread
+```
 
 - **Run the server**
+
+```bash
   ./server
+```
 
 - **Run the client**
+
+```bash
   ./client
+```

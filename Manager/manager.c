@@ -18,7 +18,7 @@
 
 #define CUSTOMER_FILE "Customer/customers.txt"
 #define EMPLOYEE_FILE "Employee/employees.txt"
-#define LOAN_FILE "Customer/loans.txt"
+#define LOAN_FILE "Loan/loans.txt"
 #define FEEDBACK_FILE "Customer/feedback.txt"
 #define MANAGE_LOAN_FILE "Loan/manage_loan.txt"
 #define MANAGER_FILE "Manager/managers.txt"

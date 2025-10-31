@@ -16,7 +16,7 @@
 #define MAX_EMPLOYEES 100
 #define MINIMUM_INCOME_THRESHOLD 30000.0
 #define CUSTOMER_FILE "Customer/customers.txt"
-#define LOAN_FILE "Customer/loans.txt"
+#define LOAN_FILE "Loan/loans.txt"
 #define TRANSACTION_FILE "Customer/transaction_history.txt"
 #define EMPLOYEE_FILE "Employee/employees.txt"
 #define MANAGE_LOAN_FILE "Loan/manage_loan.txt"
