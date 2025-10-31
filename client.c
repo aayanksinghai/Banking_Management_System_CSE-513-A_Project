@@ -304,7 +304,7 @@ void show_admin_menu(int sock, const char* username){
                 }
                 break;
             case 2: 
-                printf("Enter new customer details (username password balance id): ");
+                printf("Enter new customer details (username password balance): ");
                 scanf(" %[^\n]", message); 
                 send(sock, message, strlen(message), 0); 
                 memset(server_reply, 0, BUFFER_SIZE); // 1. CLEAR

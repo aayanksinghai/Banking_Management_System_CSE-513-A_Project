@@ -379,23 +379,75 @@ void save_new_customer(Customer new_customer) {
     close(fd);
 }
 
-// Function to add a new customer
+// Function to add a new customer (REFACTORED for Auto-Incrementing ID)
 void add_customer(int sock) {
     char message[BUFFER_SIZE];
-    recv(sock, message, BUFFER_SIZE, 0);
-    sscanf(message, "%s %s %f %d", new_customer.username, new_customer.password, 
-           &new_customer.balance, &new_customer.id);
+    char success_msg[BUFFER_SIZE]; // For sending the new ID back
+    Customer new_customer; // Use a local struct
+    
+    // Clear message buffer
+    memset(message, 0, BUFFER_SIZE);
+    recv(sock, message, BUFFER_SIZE - 1, 0);
+    // 1. Receive the *shorter* string (no ID)
+    sscanf(message, "%s %s %f", new_customer.username, new_customer.password, 
+           &new_customer.balance);
 
-    if (is_customer_exists(new_customer.username, new_customer.password)) {
-        const char *error_msg = "Customer already exists!";
-        send(sock, error_msg, strlen(error_msg), 0);
+    // --- 2. Open and Lock File ---
+    int fd = open(CUSTOMER_FILE, O_RDWR | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("Failed to open customer file for add");
+        send(sock, "Error: Database failure.\n", 25, 0);
         return;
     }
-    new_customer.is_active = 1;
+    if (flock(fd, LOCK_EX) == -1) { // Get EXCLUSIVE lock
+        perror("Failed to lock customer file for add");
+        close(fd);
+        send(sock, "Error: Database busy, try again.\n", 33, 0);
+        return;
+    }
+
+    // --- 3. Load all customers ---
+    _admin_load_customers_from_fd(fd, sock); // This populates the global 'customers' array
+
+    // --- 4. Check for username conflicts ---
+    for (int i = 0; i < customer_count; i++) {
+        if (strcmp(customers[i].username, new_customer.username) == 0) {
+            const char *error_msg = "Error: Customer with this username already exists!";
+            send(sock, error_msg, strlen(error_msg), 0);
+            flock(fd, LOCK_UN);
+            close(fd);
+            return;
+        }
+    }
+
+    // --- 5. Find the highest existing ID ---
+    int max_id = 0;
+    for (int i = 0; i < customer_count; i++) {
+        if (customers[i].id > max_id) {
+            max_id = customers[i].id;
+        }
+    }
+    
+    // Set new ID. Start at 100 if no customers, else increment.
+    new_customer.id = (max_id == 0) ? 100 : max_id + 1;
+    // new_customer.is_active = 1;
+
+    // --- 6. No conflicts, add to array ---
     customers[customer_count++] = new_customer;
-    save_new_customer(new_customer);
-    const char *success_msg = "Customer added successfully!";
-    send(sock, success_msg, strlen(success_msg), 0);
+    
+    // --- 7. Save array back to file ---
+    if (_admin_save_customers_to_fd(fd) == 0) {
+        // Send a success message that includes the new ID
+        snprintf(success_msg, sizeof(success_msg), "Customer added successfully! New Customer ID is: %d", new_customer.id);
+        send(sock, success_msg, strlen(success_msg), 0);
+    } else {
+        const char *error_msg = "Error: Failed to save new customer.";
+        send(sock, error_msg, strlen(error_msg), 0);
+    }
+
+    // --- 8. Unlock and Close ---
+    flock(fd, LOCK_UN);
+    close(fd);
 }
 
 void view_all_customer(int sock) {
@@ -431,9 +483,10 @@ void view_all_customer(int sock) {
     // Build one large string
     strcat(all_customers_buffer, "Customers:\n");
     for (int i = 0; i < customer_count; i++) {
-        snprintf(buffer, BUFFER_SIZE, "%s %s %.2f %d %d\n", 
+        snprintf(buffer, BUFFER_SIZE, "%s %s %.2f %d\n", 
                  customers[i].username, customers[i].password, 
-                 customers[i].balance, customers[i].id, customers[i].is_active);
+                 customers[i].balance, customers[i].id);
+                 //, customers[i].is_active)
         
         // Append to the large buffer, checking for overflow
         if(strlen(all_customers_buffer) + strlen(buffer) < sizeof(all_customers_buffer)) {
