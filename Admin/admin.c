@@ -8,7 +8,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include "admin.h"
-#include "../session.h"
+#include "../Session/session.h"
 #include "../Employee/employee.h"
 #include "../Customer/customer.h"
 #include "../Manager/manager.h"
@@ -20,8 +20,6 @@
 #define MANAGER_FILE "Manager/managers.txt"
 #define ADMIN_FILE "Admin/admin.txt"
 
-// static char admin_username[] = "root";
-// static char admin_password[] = "root";
 
 Employee employees[100];
 int emp_count = 0;
@@ -32,7 +30,6 @@ int manager_count = 0;
 Manager new_manager;
 
 
-// Helper to load all employees from an already-opened file descriptor
 int _admin_load_employees_from_fd(int fd) {
     if (lseek(fd, 0, SEEK_SET) == -1) {
         perror("Failed to lseek to start of employee file");
@@ -1210,5 +1207,5 @@ void manage_user_roles(int sock) {
             default:
                 send(sock, "Invalid choice.\n", 17, 0);
         }
-    } // <-- END OF LOOP
+    }
 }

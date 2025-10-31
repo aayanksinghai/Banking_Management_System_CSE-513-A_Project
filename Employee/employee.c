@@ -6,11 +6,11 @@
 #include <sys/file.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <errno.h>       // For errno and ENOENT
+#include <errno.h> 
 #include "employee.h"
 #include "../Admin/admin.h"
 #include "../Customer/customer.h"
-#include "../session.h"
+#include "../Session/session.h"
 
 #define BUFFER_SIZE 1024
 #define MAX_EMPLOYEES 100
@@ -19,10 +19,9 @@
 #define LOAN_FILE "Customer/loans.txt"
 #define TRANSACTION_FILE "Customer/transaction_history.txt"
 #define EMPLOYEE_FILE "Employee/employees.txt"
-#define MANAGE_LOAN_FILE "manage_loan.txt"
-// Define new files for processed loans
-#define APPROVED_LOANS_FILE "processed_loans_approved.txt"
-#define REJECTED_LOANS_FILE "processed_loans_rejected.txt"
+#define MANAGE_LOAN_FILE "Loan/manage_loan.txt"
+#define APPROVED_LOANS_FILE "Loan/processed_loans_approved.txt"
+#define REJECTED_LOANS_FILE "Loan/processed_loans_rejected.txt"
 #define TEMP_MANAGE_LOAN_FILE "temp_manage_loan.txt"
 
 Employee emp;
@@ -38,9 +37,6 @@ void update_customer(int sock);
 void Process_LoanApp(int sock, int employee_id);
 void change_employee_password(int sock, const char* username);
 
-
-
-// Helper to load all customers from an already-opened file descriptor
 int _emp_load_customers_from_fd(int fd) {
     if (lseek(fd, 0, SEEK_SET) == -1) {
         perror("Failed to lseek to start of customer file");
@@ -86,7 +82,6 @@ int _emp_load_customers_from_fd(int fd) {
     return customer_count;
 }
 
-// Helper to save all customers to an already-opened file descriptor
 int _emp_save_customers_to_fd(int fd) {
     if (lseek(fd, 0, SEEK_SET) == -1) {
         perror("Failed to lseek to start for writing");
@@ -108,7 +103,7 @@ int _emp_save_customers_to_fd(int fd) {
             return -1;
         }
     }
-    return 0; // Success
+    return 0;
 }
 
 int _emp_load_employees_from_fd(int fd) {
@@ -121,7 +116,7 @@ int _emp_load_employees_from_fd(int fd) {
     char line[BUFFER_SIZE];
     int line_pos = 0;
     ssize_t bytes_read;
-    emp_count = 0; // Reset global employee count
+    emp_count = 0;
 
     while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytes_read] = '\0';
@@ -154,7 +149,6 @@ int _emp_load_employees_from_fd(int fd) {
     return emp_count;
 }
 
-// ADD THIS FULL FUNCTION
 int _emp_save_employees_to_fd(int fd) {
     if (lseek(fd, 0, SEEK_SET) == -1) {
         perror("Failed to lseek to start for writing");
@@ -212,10 +206,10 @@ int authenticate_employee(const char* username, const char* password) {
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
 
-                Employee auth_emp; // Use a local variable
+                Employee auth_emp;
                 sscanf(line, "%s %s %d", auth_emp.username, auth_emp.password, &auth_emp.id);
                 if (strcmp(auth_emp.username, username) == 0 && strcmp(auth_emp.password, password) == 0) {
-                    found = auth_emp.id; // <-- RETURN THE ID ON SUCCESS
+                    found = auth_emp.id;
                     break;
                 }
                 
@@ -246,20 +240,16 @@ void view_customer_transactions(int sock) {
     int history_len = 0;
     int found = 0;
 
-    // 1. Get customer ID string from client
     int bytes = recv(sock, id_buffer, sizeof(id_buffer) - 1, 0);
     id_buffer[bytes] = '\0';
     id_buffer[strcspn(id_buffer, "\n")] = 0;
-    int search_id = atoi(id_buffer); // Convert to int
+    int search_id = atoi(id_buffer);
 
-    // 2. Open transaction file
     int fd = open(TRANSACTION_FILE, O_RDONLY | O_CREAT, 0644);
     if (fd == -1) { /* error handling */ return; }
 
-    // 3. Get shared lock for reading
     if (flock(fd, LOCK_SH) == -1) { /* error handling */ return; }
 
-    // 4. Read and parse file
     while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytes_read] = '\0';
         char *ptr = buffer;
@@ -271,7 +261,6 @@ void view_customer_transactions(int sock) {
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
 
-                // --- NEW SEARCH LOGIC ---
                 int line_id;
                 if (sscanf(line, "%d |", &line_id) == 1) {
                     if (line_id == search_id) {
@@ -283,7 +272,6 @@ void view_customer_transactions(int sock) {
                         }
                     }
                 }
-                // --- END OF NEW LOGIC ---
 
                 line[0] = '\0';
                 line_pos = 0;
@@ -296,11 +284,9 @@ void view_customer_transactions(int sock) {
         }
     }
 
-    // 5. Unlock and close
     flock(fd, LOCK_UN);
     close(fd);
 
-    // 6. Send result
     if (!found) {
         send(sock, "No transaction history found for that user ID.\n", 47, 0);
     } else {
@@ -310,25 +296,22 @@ void view_customer_transactions(int sock) {
 
 void view_assigned_loans(int sock, int employee_id) {
     char buffer[BUFFER_SIZE * 4]; 
-    char line[BUFFER_SIZE] = {0}; // IMPORTANT: Initialize to zero
+    char line[BUFFER_SIZE] = {0};
     int line_pos = 0;
     ssize_t bytes_read;
     char assigned_loans[BUFFER_SIZE * 10] = ""; 
     int history_len = 0;
     int found = 0;
 
-    // 1. Open the manager's assignment file
     int fd = open(MANAGE_LOAN_FILE, O_RDONLY | O_CREAT, 0644);
     if (fd == -1) { /* ... error handling ... */ return; }
 
-    // 2. Get shared lock for reading
     if (flock(fd, LOCK_SH) == -1) { /* ... error handling ... */ return; }
 
     const char *header = "--- Your Assigned Loans ---\n";
     strcat(assigned_loans, header);
     history_len += strlen(header);
 
-    // 3. Read and parse file
     while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytes_read] = '\0';
         char *ptr = buffer;
@@ -340,7 +323,6 @@ void view_assigned_loans(int sock, int employee_id) {
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
 
-                // --- NEW SEARCH LOGIC ---
                 int line_loan_id, line_emp_id;
                 // Format is: LoanID | EmpID | ...
                 if (sscanf(line, "%d | %d", &line_loan_id, &line_emp_id) == 2) {
@@ -353,7 +335,6 @@ void view_assigned_loans(int sock, int employee_id) {
                         }
                     }
                 }
-                // --- END OF NEW LOGIC ---
 
                 line[0] = '\0';
                 line_pos = 0;
@@ -366,11 +347,9 @@ void view_assigned_loans(int sock, int employee_id) {
         }
     }
 
-    // 4. Unlock and close
     flock(fd, LOCK_UN);
     close(fd);
 
-    // 5. Send result
     if (!found) {
         send(sock, "You have no loans assigned to you.\n", 35, 0);
     } else {
@@ -404,7 +383,6 @@ void handle_employee_login(int sock) {
             return;
         }
         logUserIn(employee_id, ROLE_EMPLOYEE); // <-- 2. LOG IN
-        // --- END SESSION CHECK ---
 
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
@@ -412,7 +390,6 @@ void handle_employee_login(int sock) {
         while (1) {
             char choice_str[BUFFER_SIZE];
             memset(choice_str, 0, sizeof(choice_str));
-            // recv(sock, choice_str, sizeof(choice_str), 0);
 
             int bytes_recvd = recv(sock, choice_str, sizeof(choice_str), 0);
             if(bytes_recvd <= 0) {
@@ -488,21 +465,17 @@ void update_customer(int sock) {
         return;
     }
 
-    // 1. READ
     _emp_load_customers_from_fd(fd);
 
-    // 2. MODIFY (in memory)
     for (int i = 0; i < customer_count; i++) {
         if (strcmp(customers[i].username, old_username) == 0) {
             found = 1;
-            // Update the details in the global array
             strcpy(customers[i].username, new_username);
             strcpy(customers[i].password, new_password);
             break;
         }
     }
 
-    // 3. WRITE (back to file)
     if (found) {
         if (_emp_save_customers_to_fd(fd) == -1) {
             // Failed to save
@@ -518,69 +491,10 @@ void update_customer(int sock) {
         send(sock, error_msg, strlen(error_msg), 0);
     }
     
-    // 4. UNLOCK and CLOSE
     flock(fd, LOCK_UN);
     close(fd);
 }
 
-// Helper function to find a loan's details from loans.txt by ID
-/*
-int get_loan_details(int loan_id, Loan *loan_to_fill) {
-    int fd = open(LOAN_FILE, O_RDONLY);
-    if (fd == -1) {
-        perror("Failed to open loans.txt for detail fetch");
-        return 0; // Not found
-    }
-    flock(fd, LOCK_SH);
-
-    char buffer[BUFFER_SIZE * 4];
-    char line[BUFFER_SIZE] = {0};
-    int line_pos = 0;
-    ssize_t bytes_read;
-    int found = 0;
-
-    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[bytes_read] = '\0';
-        char *ptr = buffer;
-        while (*ptr) {
-            char *newline = strchr(ptr, '\n');
-            if (newline) {
-                int len = newline - ptr;
-                strncat(line, ptr, len);
-                line[line_pos + len] = '\0';
-                
-                sscanf(line, "%d |", &loan_to_fill->loan_id);
-                if (loan_to_fill->loan_id == loan_id) {
-                    found = 1;
-                    sscanf(line, "%d | %s | %f | %s | %f | %s | %s",
-                           &loan_to_fill->loan_id, 
-                           loan_to_fill->customer_username, 
-                           &loan_to_fill->loan_amount, 
-                           loan_to_fill->loan_purpose, 
-                           &loan_to_fill->monthly_income, 
-                           loan_to_fill->employment_status, 
-                           loan_to_fill->contact_info);
-                    break;
-                }
-                line[0] = '\0';
-                line_pos = 0;
-                ptr = newline + 1;
-            } else {
-                strcpy(line, ptr);
-                line_pos = strlen(line);
-                break;
-            }
-        }
-        if (found) break;
-    }
-    flock(fd, LOCK_UN);
-    close(fd);
-    return found;
-}
-*/
-
-// --- NEW REFACTORED Process_LoanApp ---
-// --- NEW REFACTORED Process_LoanApp ---
 void Process_LoanApp(int sock, int employee_id) {
     char line[BUFFER_SIZE] = {0};
     char buffer[BUFFER_SIZE];

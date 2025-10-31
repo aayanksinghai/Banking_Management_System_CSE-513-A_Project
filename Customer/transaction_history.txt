@@ -1,13 +1,10 @@
-100 | aayank | Deposit | 500.00 | Fri Oct 31 16:33:30 2025
-100 | aayank | Withdrawal | 500.00 | Fri Oct 31 16:34:37 2025
-100 | aayank | Deposit | 1000.00 | Fri Oct 31 16:34:46 2025
-100 | aayank | Withdrawal | 2000.00 | Fri Oct 31 16:35:17 2025
-100 | aayank | Deposit | 500.00 | Fri Oct 31 16:36:05 2025
-100 | aayank | Transfer | 400.00 | Fri Oct 31 16:48:29 2025
-101 | rahul | Deposit | 600.00 | Fri Oct 31 16:49:32 2025
-102 | suchir | Deposit | 500.00 | Fri Oct 31 17:02:30 2025
-102 | suchir | Transfer | 1000.00 | Fri Oct 31 17:02:59 2025
-102 | suchir | Transfer (Debit) | 300.00 | Fri Oct 31 17:08:35 2025
-101 | rahul | Transfer (Credit) | 300.00 | Fri Oct 31 17:08:35 2025
-103 | pankaj_deopa | Deposit | 12400.00 | Fri Oct 31 20:23:21 2025
-100 | aayankji | Loan (Approved) | 400.00 | Fri Oct 31 22:13:33 2025
+100 | aayank | Deposit | 100.00 | Fri Oct 31 23:29:16 2025
+100 | aayank | Withdrawal | 500.00 | Fri Oct 31 23:29:22 2025
+100 | aayank | Deposit | 1000.00 | Fri Oct 31 23:29:30 2025
+100 | aayank | Transfer (Debit) | 500.00 | Fri Oct 31 23:29:44 2025
+101 | rahul | Transfer (Credit) | 500.00 | Fri Oct 31 23:29:44 2025
+101 | rahul | Deposit | 500.00 | Fri Oct 31 23:31:11 2025
+101 | rahul | Withdrawal | 200.00 | Fri Oct 31 23:31:15 2025
+101 | rahul | Transfer (Debit) | 300.00 | Fri Oct 31 23:31:43 2025
+100 | aayank | Transfer (Credit) | 300.00 | Fri Oct 31 23:31:43 2025
+101 | rahul | Loan (Approved) | 2000.00 | Fri Oct 31 23:35:24 2025

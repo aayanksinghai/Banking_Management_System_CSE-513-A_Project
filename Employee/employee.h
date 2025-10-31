@@ -2,7 +2,7 @@
 #define EMPLOYEE_H
 
 #include "../Customer/customer.h" 
-#include "../loan.h"
+#include "../Loan/loan.h"
 
 void view_all_customer(int sock);
 void Process_LoanApp(int sock, int employee_id);

@@ -3,7 +3,6 @@
 
 #define MAX_LOGGED_IN_USERS 200
 
-// A struct to track a single logged-in user
 typedef struct {
     int id;
     int role;
@@ -13,7 +12,6 @@ static LoggedInUser loggedInUsers[MAX_LOGGED_IN_USERS];
 static int loggedInUserCount = 0;
 static pthread_mutex_t sessionMutex;
 
-// Initialize the mutex
 void initSessionLock() {
     pthread_mutex_init(&sessionMutex, NULL);
 }
@@ -48,7 +46,6 @@ void logUserOut(int id, int role) {
     pthread_mutex_lock(&sessionMutex);
     for (int i = 0; i < loggedInUserCount; i++) {
         if (loggedInUsers[i].id == id && loggedInUsers[i].role == role) {
-            // Remove by swapping with the last element
             loggedInUsers[i] = loggedInUsers[loggedInUserCount - 1];
             loggedInUserCount--;
             break;

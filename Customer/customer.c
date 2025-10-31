@@ -11,9 +11,9 @@
 #include <time.h>
 #include <errno.h>
 #include "customer.h"
-#include "../loan.h"
+#include "../Loan/loan.h"
 #include "../Employee/employee.h"
-#include "../session.h"
+#include "../Session/session.h"
 
 
 #define BUFFER_SIZE 1024
@@ -41,9 +41,6 @@ void add_feedback(int customer_id, int sock);
 void view_transaction_history(int customer_id, int sock); 
 void log_transaction(int customer_id, const char *username, const char *type, float amount);
 
-
-// Helper to load all customers from an already-opened file descriptor
-// This allows us to re-use it within a locked transaction
 int _load_customers_from_fd(int fd) {
     // Rewind file descriptor to the beginning
     if (lseek(fd, 0, SEEK_SET) == -1) {
@@ -90,9 +87,6 @@ int _load_customers_from_fd(int fd) {
     return customer_count;
 }
 
-
-// Helper to save all customers to an already-opened file descriptor
-// This truncates the file and writes everything from the global array
 int _save_customers_to_fd(int fd) {
     // Rewind and truncate the file (clear it)
     if (lseek(fd, 0, SEEK_SET) == -1) {

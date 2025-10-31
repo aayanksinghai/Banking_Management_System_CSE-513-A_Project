@@ -8,10 +8,10 @@
 #include <errno.h>
 #include <fcntl.h>   
 #include "manager.h"
-#include "../loan.h"
+#include "../Loan/loan.h"
 #include "../Employee/employee.h"
 #include "../Customer/customer.h"
-#include "../session.h"
+#include "../Session/session.h"
 
 #define BUFFER_SIZE 1024
 #define MAX_CUSTOMERS 100
@@ -20,7 +20,7 @@
 #define EMPLOYEE_FILE "Employee/employees.txt"
 #define LOAN_FILE "Customer/loans.txt"
 #define FEEDBACK_FILE "Customer/feedback.txt"
-#define MANAGE_LOAN_FILE "manage_loan.txt"
+#define MANAGE_LOAN_FILE "Loan/manage_loan.txt"
 #define MANAGER_FILE "Manager/managers.txt"
 
 extern Manager managers[100];
@@ -36,25 +36,21 @@ void Review_Customer_feedback(int sock);
 void change_manager_password(int sock, const char* username);
 
 
-// NEW FUNCTION (Read-Only)
 int authenticate_manager(const char* username, const char* password) {
     int fd = open(MANAGER_FILE, O_RDONLY | O_CREAT, 0644);
     if (fd == -1) {
-        // If file doesn't exist, create it with the default manager
         if (errno == ENOENT) {
             fd = open(MANAGER_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
             if (fd == -1) {
                 perror("Failed to create manager file");
                 return 0;
             }
-            // Add the original hard-coded manager
             const char *default_manager = "BudgetBoss OnBudget 901\n";
             write(fd, default_manager, strlen(default_manager));
             close(fd);
-            
-            // Re-open for reading
+
             fd = open(MANAGER_FILE, O_RDONLY);
-            if (fd == -1) return 0; // Failed
+            if (fd == -1) return 0;
         } else {
             perror("Failed to open manager file");
             return 0;
@@ -84,7 +80,6 @@ int authenticate_manager(const char* username, const char* password) {
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
 
-                // Process the line
                 Manager auth_mgr;
                 sscanf(line, "%s %s %d", auth_mgr.username, auth_mgr.password, &auth_mgr.id);
                 if (strcmp(auth_mgr.username, username) == 0 && strcmp(auth_mgr.password, password) == 0) {
@@ -148,7 +143,6 @@ int _mgr_load_managers_from_fd(int fd) {
     return manager_count;
 }
 
-// ADD THIS HELPER
 int _mgr_save_managers_to_fd(int fd) {
     if (lseek(fd, 0, SEEK_SET) == -1) {
         perror("Failed to lseek to start for writing");
@@ -168,11 +162,9 @@ int _mgr_save_managers_to_fd(int fd) {
             return -1;
         }
     }
-    return 0; // Success
+    return 0;
 }
 
-
-// Helper to load all customers from an already-opened file descriptor
 int _mgr_load_customers_from_fd(int fd) {
     if (lseek(fd, 0, SEEK_SET) == -1) {
         perror("Failed to lseek to start of customer file");
@@ -218,7 +210,6 @@ int _mgr_load_customers_from_fd(int fd) {
     return customer_count;
 }
 
-// Helper to save all customers to an already-opened file descriptor
 int _mgr_save_customers_to_fd(int fd) {
     if (lseek(fd, 0, SEEK_SET) == -1) {
         perror("Failed to lseek to start for writing");
@@ -240,7 +231,7 @@ int _mgr_save_customers_to_fd(int fd) {
             return -1;
         }
     }
-    return 0; // Success
+    return 0;
 }
 
 
@@ -259,17 +250,15 @@ void handle_manager_login(int sock) {
     password[strcspn(password, "\n")] = 0;
 
     int manager_id = authenticate_manager(username, password);
-    if (manager_id > 0) { // Check for a valid ID
+    if (manager_id > 0) {
 
-        // --- 1. SESSION CHECK ---
         if (isUserLoggedIn(manager_id, ROLE_MANAGER)) {
             const char *error_msg = "Login failed! This user is already logged in.";
             send(sock, error_msg, strlen(error_msg), 0);
             close(sock);
             return;
         }
-        logUserIn(manager_id, ROLE_MANAGER); // <-- 2. LOG IN
-        // --- END SESSION CHECK ---
+        logUserIn(manager_id, ROLE_MANAGER);
 
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
@@ -280,8 +269,8 @@ void handle_manager_login(int sock) {
             int bytes_recvd = recv(sock, choice, sizeof(choice), 0);
             if (bytes_recvd <= 0) {
                 printf("Manager client disconnected.\n");
-                logUserOut(manager_id, ROLE_MANAGER); // <-- 3. LOG OUT
-                break; // Client disconnected
+                logUserOut(manager_id, ROLE_MANAGER);
+                break;
             }
 
             int menu_choice = atoi(choice);
@@ -303,9 +292,9 @@ void handle_manager_login(int sock) {
                     break;
                 case 6:
                     printf("Manager logging out...\n");
-                    logUserOut(manager_id, ROLE_MANAGER); // <-- 3. LOG OUT
+                    logUserOut(manager_id, ROLE_MANAGER);
                     close(sock);
-                    return; // Exit thread
+                    return;
                 default:
                     const char *invalid_choice = "Invalid choice, please try again.";
                     send(sock, invalid_choice, strlen(invalid_choice), 0);
@@ -324,7 +313,7 @@ void Activate_Customer_Acc(int sock) {
 
     memset(id_buffer, 0, BUFFER_SIZE);
     int bytes = recv(sock, id_buffer, BUFFER_SIZE - 1, 0);
-    if (bytes <= 0) return; // Handle disconnect
+    if (bytes <= 0) return;
     id_buffer[strcspn(id_buffer, "\n")] = 0;
     int account_id = atoi(id_buffer);
 
@@ -341,16 +330,14 @@ void Activate_Customer_Acc(int sock) {
         return;
     }
 
-    // 1. READ
     _mgr_load_customers_from_fd(fd);
 
-    // 2. MODIFY
     char msg[100];
     for(int i=0; i<customer_count; i++) {
         if (customers[i].id == account_id) {
             found = 1;
             if (customers[i].is_active == 0) {
-                customers[i].is_active = 1; // Activate in memory
+                customers[i].is_active = 1;
                 strcpy(msg, "Customer's account is activated\n");
             } else {
                 strcpy(msg, "Customer's account is already active\n");
@@ -363,7 +350,6 @@ void Activate_Customer_Acc(int sock) {
         strcpy(msg, "Customer ID not found\n");
     }
 
-    // 3. WRITE (if found and needed to be activated)
     if (found) {
         if (_mgr_save_customers_to_fd(fd) == -1) {
             perror("Failed to save customer activation");
@@ -371,7 +357,6 @@ void Activate_Customer_Acc(int sock) {
         }
     }
     
-    // 4. Send result, UNLOCK, and CLOSE
     send(sock, msg, strlen(msg), 0);
     flock(fd, LOCK_UN);
     close(fd);
@@ -383,7 +368,7 @@ void Deactivate_Customer_Acc(int sock){
 
     memset(id_buffer, 0, BUFFER_SIZE);
     int bytes = recv(sock, id_buffer, BUFFER_SIZE - 1, 0);
-    if (bytes <= 0) return; // Handle disconnect
+    if (bytes <= 0) return;
     id_buffer[strcspn(id_buffer, "\n")] = 0;
     int account_id = atoi(id_buffer);
 
@@ -401,16 +386,14 @@ void Deactivate_Customer_Acc(int sock){
         return;
     }
     
-    // 1. READ
     _mgr_load_customers_from_fd(fd);
 
-    // 2. MODIFY
     char msg[100];
     for(int i=0; i<customer_count; i++) {
         if (customers[i].id == account_id) {
             found = 1;
             if (customers[i].is_active == 1) {
-                customers[i].is_active = 0; // Deactivate in memory
+                customers[i].is_active = 0;
                 strcpy(msg, "Customer's account deactivated successfully\n");
             } else {
                 strcpy(msg, "Customer's account is already deactivated\n");
@@ -423,7 +406,6 @@ void Deactivate_Customer_Acc(int sock){
         strcpy(msg, "Customer ID not found\n");
     }
 
-    // 3. WRITE (if found and needed to be deactivated)
     if (found) {
         if (_mgr_save_customers_to_fd(fd) == -1) {
             perror("Failed to save customer deactivation");
@@ -431,15 +413,11 @@ void Deactivate_Customer_Acc(int sock){
         }
     }
     
-    // 4. Send result, UNLOCK, and CLOSE
     send(sock, msg, strlen(msg), 0);
     flock(fd, LOCK_UN);
     close(fd);
 }
 
-// This is a helper function to read all loans from a file descriptor
-// and build a string to send to the client. It also populates a
-// Loan array for later use.
 int load_and_send_loans(int sock, int fd, Loan all_loans[]) {
     char buffer[BUFFER_SIZE * 4];
     char line[BUFFER_SIZE] = {0};
@@ -450,7 +428,7 @@ int load_and_send_loans(int sock, int fd, Loan all_loans[]) {
 
     strcat(all_loans_string, "--- Unassigned Loans ---\n");
 
-    lseek(fd, 0, SEEK_SET); // Rewind file
+    lseek(fd, 0, SEEK_SET);
 
     while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytes_read] = '\0';
@@ -462,7 +440,6 @@ int load_and_send_loans(int sock, int fd, Loan all_loans[]) {
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
 
-                // Parse the line and store it
                 sscanf(line, "%d | %s | %f | %s | %f | %s | %s", 
                        &all_loans[loan_count].loan_id,
                        all_loans[loan_count].customer_username, 
@@ -472,7 +449,6 @@ int load_and_send_loans(int sock, int fd, Loan all_loans[]) {
                        all_loans[loan_count].employment_status, 
                        all_loans[loan_count].contact_info);
 
-                // Add to the string to send to manager
                 if (strlen(all_loans_string) + strlen(line) < sizeof(all_loans_string)) {
                     strcat(all_loans_string, line);
                     strcat(all_loans_string, "\n");
@@ -499,9 +475,8 @@ int load_and_send_loans(int sock, int fd, Loan all_loans[]) {
     return loan_count;
 }
 
-// --- NEW REFACTORED FUNCTION ---
 void Assign_LoanApp_to_Employee(int sock) {
-    Loan all_loans[200]; // In-memory array of loans
+    Loan all_loans[200];
     char message[BUFFER_SIZE];
     int loan_id_to_assign;
     int employee_id_to_assign;
@@ -509,14 +484,13 @@ void Assign_LoanApp_to_Employee(int sock) {
     Loan assigned_loan;
     int found_loan = 0;
 
-    // --- Part A: Open, Lock, and Send Loan List ---
-    int fd_loan = open(LOAN_FILE, O_RDWR); // Open for Read/Write
+    int fd_loan = open(LOAN_FILE, O_RDWR);
     if (fd_loan == -1) {
         perror("Failed to open loans.txt");
         send(sock, "Error: Cannot open loan applications.\n", 37, 0);
         return;
     }
-    if (flock(fd_loan, LOCK_EX) == -1) { // EXCLUSIVE LOCK
+    if (flock(fd_loan, LOCK_EX) == -1) {
         perror("Failed to lock loans.txt");
         close(fd_loan);
         send(sock, "Error: Database busy.\n", 21, 0);
@@ -527,13 +501,12 @@ void Assign_LoanApp_to_Employee(int sock) {
     if (loan_count == 0) {
         flock(fd_loan, LOCK_UN);
         close(fd_loan);
-        return; // No loans to assign
+        return;
     }
 
-    // --- Part B: Receive Assignment from Manager ---
     memset(message, 0, BUFFER_SIZE);
     int bytes = recv(sock, message, BUFFER_SIZE - 1, 0);
-    if (bytes <= 0) { // Client disconnected
+    if (bytes <= 0) {
         flock(fd_loan, LOCK_UN);
         close(fd_loan);
         return;
@@ -541,7 +514,6 @@ void Assign_LoanApp_to_Employee(int sock) {
     message[bytes] = '\0';
     sscanf(message, "%d %d", &loan_id_to_assign, &employee_id_to_assign);
 
-    // --- Part C: Append to manage_loan.txt ---
     int fd_manage = open(MANAGE_LOAN_FILE, O_WRONLY | O_CREAT | O_APPEND, 0644);
     if (fd_manage == -1) {
         perror("Failed to open manage_loan.txt");
@@ -552,10 +524,8 @@ void Assign_LoanApp_to_Employee(int sock) {
     }
     if (flock(fd_manage, LOCK_EX) == -1) {
         perror("Failed to lock manage_loan.txt");
-        // ... (error handling) ...
     }
 
-    // Find the loan to assign
     for (int i = 0; i < loan_count; i++) {
         if (all_loans[i].loan_id == loan_id_to_assign) {
             assigned_loan = all_loans[i];
@@ -567,7 +537,6 @@ void Assign_LoanApp_to_Employee(int sock) {
     if (!found_loan) {
         send(sock, "Error: Loan ID not found.\n", 26, 0);
     } else {
-        // Write to management file
         snprintf(message, sizeof(message), "%d | %d | %s | %.2f | %s | %.2f | %s | %s\n", 
                 assigned_loan.loan_id,
                 employee_id_to_assign,
@@ -579,15 +548,13 @@ void Assign_LoanApp_to_Employee(int sock) {
                 assigned_loan.contact_info);
         write(fd_manage, message, strlen(message));
 
-        // --- Part D: Rewrite loans.txt to remove the assigned loan ---
-        lseek(fd_loan, 0, SEEK_SET); // Rewind
-        ftruncate(fd_loan, 0);       // Clear file
+        lseek(fd_loan, 0, SEEK_SET);
+        ftruncate(fd_loan, 0); 
 
         for (int i = 0; i < loan_count; i++) {
             if (all_loans[i].loan_id == loan_id_to_assign) {
-                continue; // Skip the assigned loan
+                continue; 
             }
-            // Write all *other* loans back to the file
             snprintf(message, sizeof(message), "%d | %s | %.2f | %s | %.2f | %s | %s\n", 
                     all_loans[i].loan_id,
                     all_loans[i].customer_username, 
@@ -601,7 +568,6 @@ void Assign_LoanApp_to_Employee(int sock) {
         send(sock, "Loan assigned successfully.\n", 28, 0);
     }
 
-    // --- Part E: Unlock and Close All ---
     flock(fd_manage, LOCK_UN);
     close(fd_manage);
     flock(fd_loan, LOCK_UN);
@@ -619,7 +585,7 @@ void Review_Customer_feedback(int sock) {
         return;
     }
 
-    if (flock(fd, LOCK_EX) == -1) { // Get EXCLUSIVE lock, as we will truncate after reading
+    if (flock(fd, LOCK_EX) == -1) {
         perror("Failed to lock feedback file");
         close(fd);
         send(sock, "Error: File is busy. Try again.\n", 31, 0);
@@ -638,7 +604,6 @@ void Review_Customer_feedback(int sock) {
     const char *end_message = "==========================\n     All feedbacks reviewed\n==========================\n";
     send(sock, end_message, strlen(end_message), 0);
     
-    // Now, truncate the file
     if (ftruncate(fd, 0) == -1) {
         perror("Failed to truncate feedback file");
     }
@@ -669,10 +634,8 @@ void change_manager_password(int sock, const char* username) {
         return;
     }
 
-    // 1. READ
     _mgr_load_managers_from_fd(fd);
 
-    // 2. MODIFY
     int user_index = -1;
     for (int i = 0; i < manager_count; i++) {
         if (strcmp(managers[i].username, username) == 0 && strcmp(managers[i].password, old_password) == 0) {
@@ -689,10 +652,8 @@ void change_manager_password(int sock, const char* username) {
         recv(sock, new_password, sizeof(new_password), 0);
         new_password[strcspn(new_password, "\n")] = 0;  
 
-        // Update in memory
         strcpy(managers[user_index].password, new_password);  
 
-        // 3. WRITE
         if (_mgr_save_managers_to_fd(fd) == 0) {
             const char *success_msg = "Password changed successfully!";
             send(sock, success_msg, strlen(success_msg), 0);
