@@ -443,7 +443,7 @@ void show_employee_menu(int sock, const char* username){
                 break; 
 
             case 3:
-                printf("Enter new customer details (username password balance id): ");
+                printf("Enter new customer details (username password balance): ");
                 scanf(" %[^\n]", message);
                 send(sock, message, strlen(message), 0); 
                 recv(sock, server_reply, BUFFER_SIZE, 0);

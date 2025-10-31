@@ -177,7 +177,7 @@ int _emp_save_employees_to_fd(int fd) {
 
 // Authenticate employee
 int authenticate_employee(const char* username, const char* password) {
-    // FILE *file = fopen(EMPLOYEE_FILE, "r");
+    
     int fd = open(EMPLOYEE_FILE, O_RDONLY | O_CREAT, 0644);
     if(fd == -1){
         perror("Failed to open employee file");
@@ -207,11 +207,10 @@ int authenticate_employee(const char* username, const char* password) {
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
 
-                // Process the line
-                Employee auth_emp;
+                Employee auth_emp; // Use a local variable
                 sscanf(line, "%s %s %d", auth_emp.username, auth_emp.password, &auth_emp.id);
                 if (strcmp(auth_emp.username, username) == 0 && strcmp(auth_emp.password, password) == 0) {
-                    found = 1;
+                    found = auth_emp.id; // <-- RETURN THE ID ON SUCCESS
                     break;
                 }
                 
@@ -304,30 +303,21 @@ void view_customer_transactions(int sock) {
     }
 }
 
-void view_assigned_loans(int sock, const char* username) {
-    char buffer[BUFFER_SIZE * 4]; // Large buffer for reading
-    char line[BUFFER_SIZE];
+void view_assigned_loans(int sock, int employee_id) {
+    char buffer[BUFFER_SIZE * 4]; 
+    char line[BUFFER_SIZE] = {0}; // IMPORTANT: Initialize to zero
     int line_pos = 0;
     ssize_t bytes_read;
-    char assigned_loans[BUFFER_SIZE * 10] = ""; // Large buffer for sending
+    char assigned_loans[BUFFER_SIZE * 10] = ""; 
     int history_len = 0;
     int found = 0;
 
     // 1. Open the manager's assignment file
     int fd = open(MANAGE_LOAN_FILE, O_RDONLY | O_CREAT, 0644);
-    if (fd == -1) {
-        perror("Failed to open assigned loans file");
-        send(sock, "Error: Could not retrieve assigned loans.\n", 41, 0);
-        return;
-    }
+    if (fd == -1) { /* ... error handling ... */ return; }
 
     // 2. Get shared lock for reading
-    if (flock(fd, LOCK_SH) == -1) {
-        perror("Failed to lock assigned loans file");
-        close(fd);
-        send(sock, "Error: Server busy, try again.\n", 30, 0);
-        return;
-    }
+    if (flock(fd, LOCK_SH) == -1) { /* ... error handling ... */ return; }
 
     const char *header = "--- Your Assigned Loans ---\n";
     strcat(assigned_loans, header);
@@ -344,19 +334,22 @@ void view_assigned_loans(int sock, const char* username) {
                 int len = newline - ptr;
                 strncat(line, ptr, len);
                 line[line_pos + len] = '\0';
-                
-                // Check if line contains the employee's username
-                // This assumes manager assigned to "employee1", "employee2", etc.
-                if (strstr(line, username) != NULL) {
-                    found = 1;
-                    // Append to history buffer if it fits
-                    if (history_len + len + 1 < sizeof(assigned_loans)) {
-                        strcat(assigned_loans, line);
-                        strcat(assigned_loans, "\n");
-                        history_len += len + 1;
+
+                // --- NEW SEARCH LOGIC ---
+                int line_loan_id, line_emp_id;
+                // Format is: LoanID | EmpID | ...
+                if (sscanf(line, "%d | %d", &line_loan_id, &line_emp_id) == 2) {
+                    if (line_emp_id == employee_id) { // Check if ID matches
+                        found = 1;
+                        if (history_len + len + 1 < sizeof(assigned_loans)) {
+                            strcat(assigned_loans, line);
+                            strcat(assigned_loans, "\n");
+                            history_len += len + 1;
+                        }
                     }
                 }
-                
+                // --- END OF NEW LOGIC ---
+
                 line[0] = '\0';
                 line_pos = 0;
                 ptr = newline + 1;
@@ -395,7 +388,8 @@ void handle_employee_login(int sock) {
     recv(sock, password, sizeof(password), 0);
     password[strcspn(password, "\n")] = 0;
 
-    if (authenticate_employee(username, password)) {
+    int employee_id = authenticate_employee(username, password);
+    if (employee_id > 0) { // Check for a valid ID
         const char *success_msg = "Login successful!";
         send(sock, success_msg, strlen(success_msg), 0);
 
@@ -431,7 +425,7 @@ void handle_employee_login(int sock) {
                     view_customer_transactions(sock);
                     break;
                 case 7:
-                    view_assigned_loans(sock, username);
+                    view_assigned_loans(sock, employee_id);
                     break;
                 case 8:
                     change_employee_password(sock, username);

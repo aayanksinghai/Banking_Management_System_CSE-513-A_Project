@@ -13,23 +13,13 @@ void handle_employee_login(int sock);
 int authenticate_employee(const char* username, const char* password);
 void change_employee_password(int sock, const char* username);
 void view_customer_transactions(int sock);
-void view_assigned_loans(int sock, const char* username);
+void view_assigned_loans(int sock, int employee_id);
 
 typedef struct {
     char username[50];
     char password[50];
     int id;
 } Employee;
-
-// typedef struct {
-//     int loan_id;
-//     char customer_username[50];
-//     float loan_amount;
-//     char loan_purpose[100];
-//     float monthly_income;
-//     char employment_status[50];
-//     char contact_info[50];
-// } LoanApplication;
 
 extern Employee emp;
 extern Employee employees[100];
