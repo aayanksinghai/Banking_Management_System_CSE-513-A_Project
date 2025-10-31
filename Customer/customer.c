@@ -29,7 +29,7 @@ typedef struct {
     char loan_purpose[50];
     float monthly_income;
     char employment_status[50];
-    int contact_info;
+    char contact_info[20];
 } Loan;
 
 // Function prototypes
@@ -477,14 +477,16 @@ void apply_for_loan(const char *username, int sock) {
     Loan loan;
     char msg[BUFFER_SIZE];
 
-    recv(sock, msg, sizeof(msg), 0);
+    memset(msg, 0, BUFFER_SIZE); // 1. Clear the buffer
+    int bytes_recvd = recv(sock, msg, sizeof(msg) - 1, 0); // 2. Get byte count
+    msg[bytes_recvd] = '\0'; // 3. Add the null-terminator
     
-    sscanf(msg, "%f %s %f %s %d", 
+    sscanf(msg, "%f %s %f %s %s", 
            &loan.loan_amount, 
            loan.loan_purpose, 
            &loan.monthly_income, 
            loan.employment_status, 
-           &loan.contact_info);
+           loan.contact_info);
 
     strcpy(loan.username, username);
 
@@ -504,7 +506,7 @@ void apply_for_loan(const char *username, int sock) {
 
 
     char buffer[BUFFER_SIZE];
-    snprintf(buffer, sizeof(buffer), "%s %.2f %s %.2f %s %d\n", 
+    snprintf(buffer, sizeof(buffer), "%s %.2f %s %.2f %s %s\n", 
             loan.username, 
             loan.loan_amount, 
             loan.loan_purpose, 

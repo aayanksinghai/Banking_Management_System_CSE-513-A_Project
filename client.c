@@ -182,7 +182,7 @@ void show_customer_menu(int sock, const char* username) {
             case 5:   // Apply for a Loan
                 float loan_amount, monthly_income;
                 char loan_purpose[50], employment_status[50];
-                int contact_info;
+                char contact_info[20];
                 printf("Enter loan amount: ");
                 scanf("%f", &loan_amount);
                 getchar();  // Consume newline
@@ -200,8 +200,8 @@ void show_customer_menu(int sock, const char* username) {
                 employment_status[strcspn(employment_status, "\n")] = 0;  // Remove newline
                 
                 printf("Enter contact information: ");
-                scanf("%d", &contact_info); 
-                snprintf(message, sizeof(message), "%.2f %s %.2f %s %d", 
+                scanf("%s", contact_info); 
+                snprintf(message, sizeof(message), "%.2f %s %.2f %s %s", 
                         loan_amount, 
                         loan_purpose, 
                         monthly_income, 
